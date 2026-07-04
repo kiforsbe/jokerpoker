@@ -47,7 +47,7 @@ class GameManagerComponent extends Component {
     // Create and position deck (visible face-down stack at the top-left;
     // it stays there across hands and the tuplaus card is dealt onto it).
     // Same x as the first hand slot, so both keep the same edge distance.
-    const deckObject = createDeck(-0.84, 0.35);
+    const deckObject = createDeck(-1.0, 0.35);
     this.gameObject.engine.addGameObject(deckObject);
     this.deck = deckObject.getComponent('Deck');
     this.deckRender = deckObject.getComponent('Render');
@@ -80,11 +80,11 @@ class GameManagerComponent extends Component {
   setState(state) { this.state = state; this.emit('stateChanged', { state }); }
   setWin(win) { this.win = win; this.emit('winChanged', { win }); }
 
-  // Hand row: card bottoms (cards are 0.42 tall, so bottom = y - 0.21) rest
-  // one hold-box height above the bottom gray band (LAYOUT.bottomBandTopY).
-  _handSlot(i) { return { x: -0.84 + i * 0.42, y: -0.35, z: 0 }; }
+  // Hand row: card bottoms (cards are 0.532 tall, so bottom = y - 0.266)
+  // rest a small gap above the bottom gray band (LAYOUT.bottomBandTopY).
+  _handSlot(i) { return { x: -1.0 + i * 0.5, y: -0.5, z: 0 }; }
   // The tuplaus card is dealt face-up onto the deck's position.
-  _doubleSlot() { return { x: -0.84, y: 0.35, z: 0 }; }
+  _doubleSlot() { return { x: -1.0, y: 0.35, z: 0 }; }
   _delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ── Bet ──────────────────────────────────────────────────────────────────────

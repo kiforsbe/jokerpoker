@@ -14,7 +14,7 @@ export const CARD_TEXTURE_HEIGHT = 538;
 // 80% of the card width (defined below as CARD_WORLD_WIDTH).
 const HOLD_TEXTURE_WIDTH = 128;
 const HOLD_TEXTURE_HEIGHT = 48;
-export const CARD_WORLD_WIDTH = 0.30;
+export const CARD_WORLD_WIDTH = 0.38;
 const HOLD_WORLD_WIDTH = CARD_WORLD_WIDTH * 0.8;
 const HOLD_WORLD_HEIGHT = HOLD_WORLD_WIDTH * (HOLD_TEXTURE_HEIGHT / HOLD_TEXTURE_WIDTH);
 
@@ -157,8 +157,8 @@ class CardRenderComponent extends RenderComponent {
     super();
     this.cardMesh = null;
     this.isFlipped = false;
-    // Base unit for card size. Hand slots are 0.42 world units apart
-    // (Game._handSlot), so 0.30 leaves a 0.12 gap between neighbors.
+    // Base unit for card size. Hand slots are 0.50 world units apart
+    // (Game._handSlot), so 0.38 leaves a 0.12 gap between neighbors.
     // (Kept in sync with CARD_WORLD_WIDTH above, which sizes the hold box.)
     this.CARD_WIDTH = CARD_WORLD_WIDTH;
     this.CARD_HEIGHT = this.CARD_WIDTH * 1.4; // Maintains 2.5:3.5 ratio

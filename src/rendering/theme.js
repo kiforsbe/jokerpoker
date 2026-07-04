@@ -31,12 +31,13 @@ export const PALETTE = {
 // bands and the components that sit on them.
 export const LAYOUT = {
   topBandBottomY: 0.76,  // top gray band: screen top down to just below the status row
-  // Bottom gray band: runs from here to the screen bottom. The DOM cabinet
-  // panel sits below the canvas (not over it), so the whole band is visible;
-  // the hold indicators sit inside it. Card bottoms rest one hold-box
-  // height (~0.09) above the band top (hand row y in Game._handSlot).
-  bottomBandTopY: -0.62, // bottom gray band: screen bottom up to just above the hold indicators
-  holdY: -0.685,         // center of the per-card "hold" indicators, inside the band
+  // Bottom gray band: runs from here to the screen bottom (y = -1). Kept
+  // slim — just a small margin taller than the hold indicators it hosts
+  // (0.114 world units tall, see CardRenderComponent HOLD_WORLD_HEIGHT).
+  // Card bottoms rest a small gap above the band top (hand row y in
+  // Game._handSlot).
+  bottomBandTopY: -0.83, // bottom gray band: screen bottom up to just above the hold indicators
+  holdY: -0.915,         // hold indicators centered in the slim bottom band
 };
 
 const THEMES = {

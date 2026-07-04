@@ -71,8 +71,9 @@ class GameScene extends Scene {
     payTableObject.position.z = 0;
     this._addRendered(payTableObject);
 
-    // Create win display first so it can be referenced by other components
-    const winDisplay = createWinDisplay(0, -0.4);
+    // Create win display first so it can be referenced by other components;
+    // centered on the hand row (Game._handSlot y).
+    const winDisplay = createWinDisplay(0, -0.5);
     winDisplay.position.z = 0;
     this._addRendered(winDisplay);
 
