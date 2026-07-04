@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Launch Joker Poker in Chrome",
+            "url": "http://localhost:5500/src/index.html",
+            "webRoot": "${workspaceFolder}/src"
+        }
+    ]
+}
