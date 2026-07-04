@@ -64,25 +64,22 @@ class JokerPokerGame {
       }
     });
 
-    // Add click-to-start overlay if audio isn't initialized
+    // Wait for the first tap/click/key on the intro screen — the same
+    // gesture unlocks web audio (AudioSystem.init listens on window).
     if (!this.audioSystem.initialized) {
-      const startOverlay = document.createElement('div');
-      startOverlay.style.position = 'fixed';
-      startOverlay.style.top = '50%';
-      startOverlay.style.left = '50%';
-      startOverlay.style.transform = 'translate(-50%, -50%)';
-      startOverlay.style.color = '#fff';
-      startOverlay.style.fontFamily = 'monospace';
-      startOverlay.style.fontSize = '24px';
-      startOverlay.style.cursor = 'pointer';
-      startOverlay.style.userSelect = 'none';
-      startOverlay.style.textAlign = 'center';
-      startOverlay.innerHTML = 'Click to Start';
-      document.body.appendChild(startOverlay);
+      const intro = document.getElementById('intro');
+      const status = document.getElementById('intro-status');
+      if (intro && status) {
+        intro.classList.add('ready');
+        status.textContent = 'TAP TO START';
+      }
 
-      // Wait for audio initialization
       await this.audioSystem.init();
-      startOverlay.remove();
+
+      if (intro && status) {
+        intro.classList.remove('ready');
+        status.textContent = 'LOADING...';
+      }
     }
 
     this.logger.log('DEBUG', 'JokerPokerGame: Systems initialized');
@@ -108,10 +105,11 @@ class JokerPokerGame {
 
       this.logger.log('DEBUG', 'JokerPokerGame: Game scene loaded');
 
-      // Hide loading screen
-      const loadingElement = document.getElementById('loading');
-      if (loadingElement) {
-        loadingElement.style.display = 'none';
+      // Fade the intro screen out over the running game
+      const intro = document.getElementById('intro');
+      if (intro) {
+        intro.classList.add('hidden');
+        intro.addEventListener('transitionend', () => intro.remove(), { once: true });
       }
 
     } catch (error) {
@@ -123,22 +121,18 @@ class JokerPokerGame {
   }
 
   showError(message) {
-    const loadingElement = document.getElementById('loading');
-    if (loadingElement) {
-      loadingElement.style.display = 'none';
+    // Surface the error on the intro screen (recreated if already removed).
+    let intro = document.getElementById('intro');
+    if (!intro) {
+      intro = document.createElement('div');
+      intro.id = 'intro';
+      intro.innerHTML = '<div class="title">JOKER POKER</div><div class="status" id="intro-status"></div>';
+      document.body.appendChild(intro);
     }
-
-    const errorDiv = document.createElement('div');
-    errorDiv.style.position = 'fixed';
-    errorDiv.style.top = '50%';
-    errorDiv.style.left = '50%';
-    errorDiv.style.transform = 'translate(-50%, -50%)';
-    errorDiv.style.color = '#ff0000';
-    errorDiv.style.fontFamily = 'monospace';
-    errorDiv.style.fontSize = '24px';
-    errorDiv.style.textAlign = 'center';
-    errorDiv.innerHTML = `ERROR:<br>${message}`;
-    document.body.appendChild(errorDiv);
+    intro.classList.remove('hidden', 'ready');
+    intro.classList.add('error');
+    const status = document.getElementById('intro-status');
+    if (status) status.textContent = 'ERROR: ' + message;
 
     this.logger.log('ERROR', 'JokerPokerGame: Fatal error', {
       message: message
@@ -154,11 +148,13 @@ try {
   logger.log('ERROR', 'Failed to start game', {
     error: error.message
   });
-  const loadingElement = document.getElementById('loading');
-  if (loadingElement) {
-    loadingElement.innerHTML = 'Error: ' + error.message;
+  const intro = document.getElementById('intro');
+  const status = document.getElementById('intro-status');
+  if (intro && status) {
+    intro.classList.add('error');
+    status.textContent = 'ERROR: ' + error.message;
   } else {
-    // Fallback if loading element isn't found
+    // Fallback if the intro screen isn't found
     alert('Error starting game: ' + error.message);
   }
 }

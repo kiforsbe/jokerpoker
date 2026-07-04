@@ -4,6 +4,12 @@
 //  - hires: full-resolution textures, current font stacks, vector court panels.
 // Pure module: no three.js / no top-level DOM so `node --test` can import it.
 
+// The game screen is a fixed 4:3 "CRT" (640x480 heritage): x in
+// [-SCREEN_ASPECT, SCREEN_ASPECT], y in [-1, 1] world units. The canvas is
+// letterboxed to this ratio whatever the window shape, so layout constants
+// below never depend on the window.
+export const SCREEN_ASPECT = 4 / 3;
+
 export const PALETTE = {
   field: '#2050c8',        // playfield blue (reference photos)
   surround: '#0a0a12',     // dark bezel outside the 4:3 screen
@@ -26,9 +32,8 @@ export const PALETTE = {
 export const LAYOUT = {
   topBandBottomY: 0.76,  // top gray band: screen top down to just below the status row
   // Bottom gray band: runs from here to the screen bottom. The DOM cabinet
-  // panel overlays the canvas below world y ≈ -0.77 (window-dependent), so
-  // the hold indicators sit above that line and the visible band strip is
-  // just a pinch taller than they are. Card bottoms rest one hold-box
+  // panel sits below the canvas (not over it), so the whole band is visible;
+  // the hold indicators sit inside it. Card bottoms rest one hold-box
   // height (~0.09) above the band top (hand row y in Game._handSlot).
   bottomBandTopY: -0.62, // bottom gray band: screen bottom up to just above the hold indicators
   holdY: -0.685,         // center of the per-card "hold" indicators, inside the band

@@ -42,14 +42,24 @@ export class CabinetPanel {
     const s = document.createElement('style');
     s.id = 'cabinet-styles';
     s.textContent = `
-      #cabinet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+      #cabinet { flex: 0 0 auto;
         display: flex; flex-direction: column; gap: 6px; align-items: center;
-        padding: 10px; background: #111; font-family: monospace; user-select: none; }
-      #cabinet .row { display: flex; gap: 8px; justify-content: center; }
-      #cabinet button { width: 92px; height: 62px; border: none; border-radius: 8px;
-        font-size: 10px; line-height: 1.25; font-weight: bold; white-space: pre;
-        cursor: pointer; box-shadow: inset 0 -4px 0 rgba(0,0,0,0.35); opacity: 0.5;
-        transition: opacity 0.1s, filter 0.1s; }
+        padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
+        background: #111; font-family: monospace;
+        user-select: none; -webkit-user-select: none;
+        touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+      #cabinet .row { display: flex; gap: clamp(3px, 1vw, 8px); justify-content: center; }
+      /* Six buttons per row must fit a 320px phone: ~15.5vw each plus gaps,
+         capped at the original desktop 92x62. Height also tracks the
+         viewport height a little so short landscape phones keep some CRT. */
+      #cabinet button { width: clamp(44px, 15.5vw, 92px);
+        height: clamp(40px, min(12vw, 14vh), 62px);
+        border: none; border-radius: 8px; padding: 0; overflow: hidden;
+        font-size: clamp(6px, 1.9vw, 10px); line-height: 1.25; font-weight: bold;
+        white-space: pre; cursor: pointer;
+        box-shadow: inset 0 -4px 0 rgba(0,0,0,0.35); opacity: 0.5;
+        transition: opacity 0.1s, filter 0.1s;
+        touch-action: manipulation; }
       #cabinet button.enabled { opacity: 1; }
       #cabinet button.enabled:hover { filter: brightness(1.15); }
     `;

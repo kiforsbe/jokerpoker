@@ -12,7 +12,7 @@ import { createScreenShake } from '../rendering/ScreenShakeComponent.js';
 import HandEvaluator from './HandEvaluator.js';
 import { CabinetPanel } from '../ui/CabinetPanel.js';
 import { AudioDirector } from '../audio/AudioDirector.js';
-import { toggleTheme } from '../rendering/theme.js';
+import { toggleTheme, SCREEN_ASPECT } from '../rendering/theme.js';
 
 class GameScene extends Scene {
   constructor() {
@@ -26,10 +26,11 @@ class GameScene extends Scene {
     this.audioSystem = this.engine.systems.get('audio');
     const renderSystem = this.engine.systems.get('render');
 
-    // Create and set up orthographic camera
-    const aspect = window.innerWidth / window.innerHeight;
+    // Create and set up orthographic camera. The visible world is the fixed
+    // 4:3 game screen — the canvas is letterboxed to the same ratio, so the
+    // camera never widens with the window.
     this.camera = new THREE.OrthographicCamera(
-      -aspect, aspect,  // left, right
+      -SCREEN_ASPECT, SCREEN_ASPECT,  // left, right
       1, -1,           // top, bottom
       0.1, 100        // near, far
     );
@@ -100,8 +101,11 @@ class GameScene extends Scene {
       screenShake
     );
 
-    // Create the cabinet button panel (DOM overlay)
+    // Create the cabinet button panel (DOM element below the canvas). It
+    // takes over the bottom of the window, so re-fit the canvas to what's
+    // left (index.js routes the resize event to RenderSystem.resize).
     this.cabinetPanel = new CabinetPanel(this.gameManager);
+    window.dispatchEvent(new Event('resize'));
 
     // Wire up event-driven machine-faithful audio
     this.audioDirector = new AudioDirector(this.audioSystem, this.gameManager);

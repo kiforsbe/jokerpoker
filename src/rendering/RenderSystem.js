@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { CRTShader } from './shaders/CRTShader.js';
 import { OutlineShader } from './shaders/OutlineShader.js';
-import { textureFilter } from './theme.js';
+import { textureFilter, SCREEN_ASPECT } from './theme.js';
 import GameLogger from '../utils/GameLogger.js';
 
 const DebugRenderMode = {
@@ -152,13 +152,15 @@ class RenderSystem {
       });
 
       this.renderer.setClearColor(0x000022, 1);
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-      this.renderer.setPixelRatio(window.devicePixelRatio);
+      const { width, height } = this._fitScreenSize();
+      this.renderer.setSize(width, height);
+      this.renderer.setPixelRatio(this._pixelRatio());
       this.renderer.autoClear = true;
-      
+
       // Add an ID to the canvas for easier identification
       this.renderer.domElement.id = 'game-canvas';
-      document.body.appendChild(this.renderer.domElement);
+      const host = document.getElementById('game-area') || document.body;
+      host.appendChild(this.renderer.domElement);
 
       // Setup context handlers
       this.renderer.domElement.addEventListener('webglcontextlost', this._contextLostHandler, false);
@@ -533,13 +535,33 @@ class RenderSystem {
     return raycaster;
   }
 
+  // Largest canvas with the game's fixed screen aspect that fits the host
+  // element (#game-area: the window minus the cabinet panel). The host's
+  // flexbox centers the canvas, letterboxing the leftover space.
+  _fitScreenSize() {
+    const host = this.renderer?.domElement.parentElement
+      || document.getElementById('game-area');
+    const availW = host?.clientWidth || window.innerWidth;
+    const availH = host?.clientHeight || window.innerHeight;
+    // Integer 4k x 3k so the canvas ratio is exactly SCREEN_ASPECT — a
+    // rounded ratio would feed Scene.resize a camera aspect a hair off 4:3,
+    // showing a sliver of surround or cropping the screen edge.
+    const k = Math.max(1, Math.floor(Math.min(availW / 4, availH / 3)));
+    return { width: 4 * k, height: 3 * k };
+  }
+
+  // Cap the backing-store density: phones report ratios of 3+, and the CRT
+  // shader over a full-window buffer at that density is wasted GPU work.
+  _pixelRatio() {
+    return Math.min(window.devicePixelRatio || 1, 2);
+  }
+
   resize() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const { width, height } = this._fitScreenSize();
 
     if (this.renderer) {
       this.renderer.setSize(width, height);
-      this.renderer.setPixelRatio(window.devicePixelRatio);
+      this.renderer.setPixelRatio(this._pixelRatio());
     }
 
     if (this.activeScene?.resize) {

@@ -10,6 +10,7 @@ A browser remake of the classic Finnish **Jokeripokeri** arcade video poker mach
 - **Machine-faithful audio** — procedurally synthesized square/noise waveforms via the Web Audio API: button ticks, shuffle and card-deal sounds, win count-up, tuplaus tunes, and attract-mode music
 - **Authentic trilingual cabinet panel** — Swedish / Finnish / English color-coded buttons rendered as a DOM overlay below the CRT
 - **Attract mode** with card animations and music
+- **Responsive layout** — the 4:3 game screen letterboxes to any window while the button panel adapts, so it plays on phones (portrait or landscape) as well as desktop; touch input supported
 - **Data-driven pay table** with win-row highlight
 
 ## Getting started

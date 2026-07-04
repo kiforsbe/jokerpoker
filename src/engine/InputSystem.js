@@ -6,7 +6,6 @@ class InputSystem {
     this.engine = engine;
     this._renderSystem = null;
     this._mousePosition = { x: 0, y: 0 };
-    this._normalizedMousePosition = { x: 0, y: 0 };
     this._isPointerDown = false;
     this._pointerDownPosition = { x: 0, y: 0 };
     this._clickOccurred = false;
@@ -67,12 +66,31 @@ class InputSystem {
     if (!scene || !scene.camera) return;
 
     if (this._clickOccurred) {
-      const ndcX = (this._clickPosition.x / window.innerWidth) * 2 - 1;
-      const ndcY = -(this._clickPosition.y / window.innerHeight) * 2 + 1;
-      const raycaster = this._renderSystem.createRaycaster(ndcX, ndcY);
+      const ndc = this._toNDC(this._clickPosition.x, this._clickPosition.y);
+      const raycaster = this._renderSystem.createRaycaster(ndc.x, ndc.y);
       if (raycaster) this._dispatchClick(raycaster);
       this._clickOccurred = false;
     }
+  }
+
+  // Client coordinates to normalized device coordinates relative to the
+  // game canvas. The canvas is letterboxed inside the window, so window-based
+  // NDC would skew every raycast; measure against the canvas rect instead.
+  _toNDC(clientX, clientY) {
+    const canvas = this._renderSystem?.renderer?.domElement;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        return {
+          x: ((clientX - rect.left) / rect.width) * 2 - 1,
+          y: -((clientY - rect.top) / rect.height) * 2 + 1
+        };
+      }
+    }
+    return {
+      x: (clientX / window.innerWidth) * 2 - 1,
+      y: -(clientY / window.innerHeight) * 2 + 1
+    };
   }
 
   _dispatchClick(raycaster) {
@@ -143,10 +161,6 @@ class InputSystem {
 
     this._mousePosition.x = event.clientX;
     this._mousePosition.y = event.clientY;
-
-    // Convert to normalized device coordinates (-1 to +1)
-    this._normalizedMousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
-    this._normalizedMousePosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
   }
 
   getPointerPosition() {
@@ -154,7 +168,9 @@ class InputSystem {
   }
 
   getNormalizedPointerPosition() {
-    return { ...this._normalizedMousePosition };
+    // Computed on demand rather than in the move handler: the render system
+    // (and thus the canvas rect) may not exist yet when the pointer first moves.
+    return this._toNDC(this._mousePosition.x, this._mousePosition.y);
   }
 
   // Alias expected by UIComponent.
