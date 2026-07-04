@@ -48,6 +48,10 @@ npm test
 
 Unit tests cover hand evaluation, payouts, tuplaus rules, theming, and the audio director/music player, using the built-in Node.js test runner.
 
+## Deploying to GitHub Pages
+
+Deployment is manual, on demand: go to the repo's **Actions** tab → **Deploy to GitHub Pages** → **Run workflow** (on `main`). The workflow runs the test suite, then publishes the `src/` folder to <https://kiforsbe.github.io/jokerpoker/>. Nothing deploys automatically on push.
+
 ## Project structure
 
 ```
