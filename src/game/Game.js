@@ -351,8 +351,14 @@ class GameManagerComponent extends Component {
       this.setWin(this.win * 2);
       this.emit('doubleResult', { outcome, win: this.win });
       // The card stays put; the run continues in 'gamble' (guess again or
-      // collect) unless the win outgrew the double limit.
-      this.setState(canDouble(this.win, this.jackpot) ? 'gamble' : 'won');
+      // collect). Once the win outgrows the double limit (half the
+      // jackpot) there is nothing left to gamble — pay out automatically.
+      if (canDouble(this.win, this.jackpot)) {
+        this.setState('gamble');
+      } else {
+        this.setState('won');
+        this.collect();
+      }
     } else if (outcome === 'keep') {
       this.emit('doubleResult', { outcome, win: this.win });
       this.setState('won');
