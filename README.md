@@ -14,7 +14,7 @@ A fan-made **tribute** to the classic Finnish **Jokeripokeri** arcade video poke
 - **Attract mode** with card animations and music
 - **Responsive layout** — the 4:3 game screen letterboxes to any window while the button panel adapts, so it plays on phones (portrait or landscape) as well as desktop; touch input supported
 - **Data-driven pay table** with win-row highlight
-- **Suspense reveal** — when the draw sits one card away from a paying hand, replacements flip with a growing dramatic pause until the hand resolves
+- **Suspense reveal** — when the draw sits one card away from a hand paying more than double the bet (straight or better), replacements flip with a growing dramatic pause until the hand resolves
 
 ## Getting started
 

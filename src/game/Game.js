@@ -15,6 +15,10 @@ import GameLogger from '../utils/GameLogger.js';
 const SUSPENSE_PAUSE_MS = 400;
 const SUSPENSE_PAUSE_STEP_MS = 300;
 const SUSPENSE_PAUSE_MAX_MS = 1300;
+// Only tease when the chased hand would pay more than double the bet.
+// Payouts are per-bet multipliers, so payout > 2 means straight or better
+// (two pairs and three of a kind pay exactly 2).
+const SUSPENSE_MIN_PAYOUT = 3;
 
 class GameManagerComponent extends Component {
   constructor() {
@@ -214,7 +218,7 @@ class GameManagerComponent extends Component {
       const visible = this.hand
         .map(o => o.getComponent('Card'))
         .filter(c => c.faceUp);
-      const tense = teases > 0 || isOneCardAway(visible);
+      const tense = teases > 0 || isOneCardAway(visible, SUSPENSE_MIN_PAYOUT);
       if (tense) {
         await this._delay(Math.min(
           SUSPENSE_PAUSE_MS + teases * SUSPENSE_PAUSE_STEP_MS,
@@ -222,7 +226,7 @@ class GameManagerComponent extends Component {
       }
 
       await rc.flip();
-      if (tense && !isPaying(visible.concat([rc]))) teases++;
+      if (tense && !isPaying(visible.concat([rc]), SUSPENSE_MIN_PAYOUT)) teases++;
       if (k < dealt.length - 1) await this._delay(80);
     }
 
