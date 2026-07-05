@@ -54,7 +54,14 @@ Unit tests cover hand evaluation, payouts, tuplaus rules, theming, and the audio
 
 ## Deploying to GitHub Pages
 
-Deployment is manual, on demand: go to the repo's **Actions** tab → **Deploy to GitHub Pages** → **Run workflow** (on `main`). The workflow runs the test suite, then publishes the `src/` folder to <https://kiforsbe.github.io/jokerpoker/>. Nothing deploys automatically on push.
+Pushing a version tag (`v*`) deploys automatically: the workflow runs the test suite, then publishes the `src/` folder to <https://kiforsbe.github.io/jokerpoker/>.
+
+```sh
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+Plain pushes to `main` never deploy. The workflow can also be run manually from the **Actions** tab → **Deploy to GitHub Pages** → **Run workflow**.
 
 ## Project structure
 
