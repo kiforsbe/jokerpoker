@@ -29,7 +29,8 @@ export class AudioDirector {
     a.registerEffect('shuffle', (ctx, g) =>
       new RetroSound(ctx, g, 2600, 0.03).setWaveform('noise')
         .addFrequencySlide(2600, 1300).setVolume(0.4).setRepeats(14));
-    // One rising swish per dealt card; a multi-card draw becomes a quick run.
+    // One rising swish per dealt card (count > 1 plays a quick run, kept
+    // for callers that batch, though deal and draw both emit per card now).
     a.registerEffect('cardDeal', (ctx, g, params) =>
       new RetroSound(ctx, g, 260, 0.07).setWaveform('triangle')
         .addFrequencySlide(260, 540).setVolume(0.5)

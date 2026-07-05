@@ -2,11 +2,19 @@ import { Component } from '../engine/Component.js';
 import { createDeck } from './Deck.js';
 import { CardComponent, createCard } from './Card.js';
 import HandEvaluator from './HandEvaluator.js';
+import { isPaying, isOneCardAway } from './nearWin.js';
 import { resolveDouble, classifyDoubleCard, canDouble } from './Tuplaus.js';
 import { ROYAL_PAYOUT } from './payouts.js';
 import { GameAudioComponent } from '../audio/AudioComponent.js';
 import { ScreenShakeComponent } from '../rendering/ScreenShakeComponent.js';
 import GameLogger from '../utils/GameLogger.js';
+
+// Draw-phase suspense reveal (see draw()): pause before flipping a
+// replacement while the hand is one card from paying, growing with each
+// reveal that keeps the player waiting.
+const SUSPENSE_PAUSE_MS = 400;
+const SUSPENSE_PAUSE_STEP_MS = 300;
+const SUSPENSE_PAUSE_MAX_MS = 1300;
 
 class GameManagerComponent extends Component {
   constructor() {
@@ -178,11 +186,9 @@ class GameManagerComponent extends Component {
     }
     await Promise.all(returns);
 
-    // Replacements fly out together, so one swish run covers the batch.
-    const replacing = this.hand.filter(o => !o.getComponent('Card').held).length;
-    if (replacing > 0) this.emit('cardDealt', { count: replacing });
-
-    const deals = [];
+    // Swap replacements into the hand data first, then deal them one at a
+    // time with the same rhythm as the opening deal (fly, flip, short gap).
+    const dealt = [];
     for (let i = 0; i < this.hand.length; i++) {
       const old = this.hand[i];
       const card = old.getComponent('Card');
@@ -190,14 +196,35 @@ class GameManagerComponent extends Component {
       const replacement = this.deck.dealCard();
       this.hand[i] = replacement;
       this.deck.returnCards([old]);
-      deals.push((async () => {
-        const rc = replacement.getComponent('Card');
-        rc.faceUp = false;
-        await rc.dealTo(this._handSlot(i));
-        await rc.flip();
-      })());
+      dealt.push({ slot: i, replacement });
     }
-    await Promise.all(deals);
+
+    // Suspense reveal: while the face-up cards sit one card away from a
+    // paying hand, hold each replacement face-down a beat before flipping,
+    // and every tease (a reveal that still doesn't pay) stretches the next
+    // pause further. The counter is local to this draw, so the tempo resets
+    // to normal by itself once the hand is resolved, win or lose.
+    let teases = 0;
+    for (let k = 0; k < dealt.length; k++) {
+      const rc = dealt[k].replacement.getComponent('Card');
+      rc.faceUp = false;
+      this.emit('cardDealt', { count: 1 });
+      await rc.dealTo(this._handSlot(dealt[k].slot));
+
+      const visible = this.hand
+        .map(o => o.getComponent('Card'))
+        .filter(c => c.faceUp);
+      const tense = teases > 0 || isOneCardAway(visible);
+      if (tense) {
+        await this._delay(Math.min(
+          SUSPENSE_PAUSE_MS + teases * SUSPENSE_PAUSE_STEP_MS,
+          SUSPENSE_PAUSE_MAX_MS));
+      }
+
+      await rc.flip();
+      if (tense && !isPaying(visible.concat([rc]))) teases++;
+      if (k < dealt.length - 1) await this._delay(80);
+    }
 
     this.emit('handChanged', { hand: this.hand });
     await this._delay(150);

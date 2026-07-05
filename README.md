@@ -1,6 +1,8 @@
 # Joker Poker
 
-A browser remake of the classic Finnish **Jokeripokeri** arcade video poker machine (as found in RAY/PAF cabinets), built with [Three.js](https://threejs.org/) and the Web Audio API. No build step, no framework — just ES modules served statically.
+A fan-made **tribute** to the classic Finnish **Jokeripokeri** arcade video poker machine (as found in RAY/PAF cabinets), rebuilt for the browser with [Three.js](https://threejs.org/) and the Web Audio API. No build step, no framework — just ES modules served statically.
+
+> **Disclaimer:** This is a non-commercial hobby homage, not an official product. It is not affiliated with, endorsed by, or connected to RAY, PAF, Veikkaus, or any maker of the original machines. **No original audio, graphics, code, or other assets from the original game are used** — every visual is drawn procedurally and every sound is synthesized from scratch; the look and feel are recreated purely from memory and reference photographs. No real-money play: the credits are make-believe.
 
 ## Features
 
@@ -12,6 +14,7 @@ A browser remake of the classic Finnish **Jokeripokeri** arcade video poker mach
 - **Attract mode** with card animations and music
 - **Responsive layout** — the 4:3 game screen letterboxes to any window while the button panel adapts, so it plays on phones (portrait or landscape) as well as desktop; touch input supported
 - **Data-driven pay table** with win-row highlight
+- **Suspense reveal** — when the draw sits one card away from a paying hand, replacements flip with a growing dramatic pause until the hand resolves
 
 ## Getting started
 

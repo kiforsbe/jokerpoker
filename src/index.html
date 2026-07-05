@@ -94,6 +94,16 @@
             color: #ff4b44;
             animation: none;
         }
+        #intro .tribute {
+            position: absolute;
+            bottom: calc(12px + env(safe-area-inset-bottom));
+            left: 0;
+            right: 0;
+            color: #666a7a;
+            font-size: clamp(13px, 2.6vw, 18px);
+            line-height: 1.5;
+            padding: 0 16px;
+        }
         @keyframes intro-blink {
             50% { opacity: 0; }
         }
@@ -105,6 +115,8 @@
         <div class="title">JOKER POKER</div>
         <div class="suits"><span class="red">&hearts;</span><span class="blue">&spades;</span><span class="red">&diams;</span><span class="blue">&clubs;</span></div>
         <div class="status" id="intro-status">LOADING...</div>
+        <div class="tribute">A fan-made tribute to the classic Jokeripokeri arcade machine.<br>
+            Unofficial and non-commercial &mdash; no original game assets are used; all graphics and sounds are made from scratch.</div>
     </div>
 
     <!-- Load Three.js and dependencies -->
