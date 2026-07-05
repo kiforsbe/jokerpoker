@@ -3,14 +3,25 @@ export class MusicPlayer {
   constructor(audioContext, masterGain) {
     this.ctx = audioContext;
     this.gain = audioContext.createGain();
-    this.gain.gain.value = 0.5;
+    this._volume = 0.5;
+    this.gain.gain.value = this._volume;
     this.gain.connect(masterGain);
     this._stopFlag = false;
     this._timer = null;
     this._active = new Set();
   }
 
-  setVolume(v) { this.gain.gain.value = v; }
+  setVolume(v) { this._volume = v; this.gain.gain.value = v; }
+
+  // Briefly silence the music without stopping the schedule — a sound
+  // effect plays over the dip and the tune resumes where it would be.
+  duck(seconds) {
+    const g = this.gain.gain;
+    const t = this.ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(0.0001, t);
+    g.setValueAtTime(this._volume, t + seconds);
+  }
 
   // notes: [{ freq, dur, type }]  (freq 0 = rest). options: { loop }
   playSequence(notes, { loop = false } = {}) {

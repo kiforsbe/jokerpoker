@@ -78,12 +78,50 @@ test('losing the double resets the tuplaus tempo', () => {
   assert.ok(Math.abs(dur - 0.56) < 0.001);
 });
 
-test('leaving the gamble state stops the tuplaus tune', () => {
+test('tuplaus tune keeps playing through the gamble states', () => {
   const { audio, gm, music } = makeFakes();
   new AudioDirector(audio, gm);
   gm.emit('doubleStarted', {});
+  const stopsAfterStart = music.stops;
   gm.emit('stateChanged', { state: 'gambleReveal' });
-  assert.ok(music.stops > 0);
+  gm.emit('stateChanged', { state: 'won' }); // successful double
+  gm.emit('stateChanged', { state: 'gambleDeal' }); // doubling again
+  gm.emit('stateChanged', { state: 'gamble' });
+  assert.equal(music.stops, stopsAfterStart);
+});
+
+test('losing the double stops the tuplaus tune', () => {
+  const { audio, gm, music } = makeFakes();
+  new AudioDirector(audio, gm);
+  gm.emit('doubleStarted', {});
+  const stopsAfterStart = music.stops;
+  gm.emit('doubleResult', { outcome: 'lose' });
+  assert.ok(music.stops > stopsAfterStart);
+});
+
+test('a successful double restarts the tune faster instead of a win melody', () => {
+  const { audio, gm, music, played } = makeFakes();
+  new AudioDirector(audio, gm);
+  gm.emit('doubleStarted', {});
+  const before = music.sequences.at(-1).notes[0].dur;
+  gm.emit('doubleResult', { outcome: 'win' });
+  const after = music.sequences.at(-1);
+  assert.equal(after.opts.loop, true); // still the looping tuplaus tune
+  assert.ok(after.notes[0].dur < before); // at the faster streak tempo
+  assert.ok(played.some(p => p.name === 'doubleWin')); // triumph sfx over the dip
+});
+
+test('collecting during tuplaus hands the music over to the count-up', () => {
+  const { audio, gm, music } = makeFakes();
+  new AudioDirector(audio, gm);
+  gm.emit('doubleStarted', {});
+  gm.emit('collected', { amount: 8 });
+  const countUp = music.sequences.at(-1);
+  assert.equal(countUp.opts.loop, false);
+  // The idle transition right after must not cut the tally off.
+  const stops = music.stops;
+  gm.emit('stateChanged', { state: 'idle' });
+  assert.equal(music.stops, stops);
 });
 
 test('double result still plays a win or lose sound', () => {

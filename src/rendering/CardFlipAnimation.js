@@ -19,11 +19,14 @@ class CardFlipAnimation extends Component {
 
     // `targetFaceUp` is the face the card should be showing when the flip
     // finishes (Card.flip passes `!faceUp`, i.e. the state it's turning into).
-    startFlip(targetFaceUp = true, onComplete = null) {
+    // `durationScale` stretches this one flip (2 = twice as slow); the
+    // suspense reveal uses it to drag out near-win turns.
+    startFlip(targetFaceUp = true, onComplete = null, durationScale = 1) {
         if (this.isFlipping) return;
 
         this.isFlipping = true;
         this.flipProgress = 0;
+        this.durationScale = Math.max(durationScale, 0.01);
         this.targetFaceUp = targetFaceUp;
         this.faceSwapped = false;
         this.onFlipComplete = onComplete;
@@ -42,7 +45,7 @@ class CardFlipAnimation extends Component {
         if (!this.isFlipping) return;
 
         // Update flip progress
-        this.flipProgress += this.flipSpeed * deltaTime;
+        this.flipProgress += (this.flipSpeed / (this.durationScale || 1)) * deltaTime;
         if (this.flipProgress >= 1) {
             this.flipProgress = 1;
             this.isFlipping = false;

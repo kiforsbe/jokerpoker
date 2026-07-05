@@ -26,6 +26,13 @@ class DeckRenderComponent extends RenderComponent {
     this._offTheme = null;
     this._shuffleT = -1;        // seconds into the animation; <0 = not running
     this._shuffleResolve = null;
+    // Set by the game manager: clicking the deck acts as the PLAY button
+    // (deal a new hand, or draw after holds).
+    this.onClick = null;
+  }
+
+  handleClick() {
+    this.onClick?.();
   }
 
   onRenderSystemReady() {

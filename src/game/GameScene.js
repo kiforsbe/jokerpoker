@@ -11,6 +11,7 @@ import { createWinDisplay } from '../rendering/WinDisplayComponent.js';
 import { createScreenShake } from '../rendering/ScreenShakeComponent.js';
 import HandEvaluator from './HandEvaluator.js';
 import { CabinetPanel } from '../ui/CabinetPanel.js';
+import { createTicker } from '../rendering/TickerComponent.js';
 import { AudioDirector } from '../audio/AudioDirector.js';
 import { toggleTheme, SCREEN_ASPECT } from '../rendering/theme.js';
 
@@ -73,13 +74,16 @@ class GameScene extends Scene {
 
     // Create win display first so it can be referenced by other components;
     // centered on the hand row (Game._handSlot y).
-    const winDisplay = createWinDisplay(0, -0.5);
+    const winDisplay = createWinDisplay(0, -0.46);
     winDisplay.position.z = 0;
     this._addRendered(winDisplay);
 
     // Create status bar (Credits / Bet / Wins) — one parent object whose
     // children are positioned relative to it.
     this._addRendered(createStatusBar(this.gameManager));
+
+    // Rules ticker on the bottom band, shown only during tuplaus.
+    this._addRendered(createTicker(this.gameManager));
 
     // Create debug panel
     const debugPanel = createDebugPanel();
@@ -209,6 +213,13 @@ class GameScene extends Scene {
           displayComponent.reset();
         }
       }
+    });
+
+    // The tuplaus card is dealt to the hand-row center, where the "WIN:"
+    // overlay sits — clear the overlay when double mode starts (the Wins
+    // status box keeps showing the amount).
+    gameManager.addEventListener('doubleStarted', () => {
+      winDisplay.getComponent('WinDisplay')?.reset();
     });
 
     // Handle card interactions

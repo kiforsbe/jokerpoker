@@ -292,7 +292,14 @@ class BetDisplayComponent extends UIComponent {
     this.value = '1';
     this.boxWidth = width;
     this.boxHeight = height;
-    this.isInteractable = false;
+    // Clickable: tapping the bet oval cycles the bet (onClick is wired in
+    // UIFactory.createStatusBar). cycleBet itself guards the game state.
+    this.isInteractable = true;
+    // The texture already carries the real colors (yellow oval, black
+    // text) — the default button tint of 0x666666 would multiply them
+    // into a muddy brown. Stay white; dim a touch on hover as feedback.
+    this.normalColor = 0xffffff;
+    this.hoverColor = 0xdddddd;
     this._offTheme = null;
   }
 

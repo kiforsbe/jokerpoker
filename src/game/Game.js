@@ -9,12 +9,13 @@ import { GameAudioComponent } from '../audio/AudioComponent.js';
 import { ScreenShakeComponent } from '../rendering/ScreenShakeComponent.js';
 import GameLogger from '../utils/GameLogger.js';
 
-// Draw-phase suspense reveal (see draw()): pause before flipping a
-// replacement while the hand is one card from paying, growing with each
-// reveal that keeps the player waiting.
-const SUSPENSE_PAUSE_MS = 400;
-const SUSPENSE_PAUSE_STEP_MS = 300;
-const SUSPENSE_PAUSE_MAX_MS = 1300;
+// Draw-phase suspense reveal (see draw()): while the hand is one card from
+// paying, replacements turn over in slow motion — the flip itself is
+// stretched (not delayed), and each reveal that keeps the player waiting
+// stretches the next one further.
+const SUSPENSE_FLIP_SCALE = 3;      // first tense flip turns 3x slower
+const SUSPENSE_FLIP_SCALE_STEP = 2; // each tease adds another 2x
+const SUSPENSE_FLIP_SCALE_MAX = 9;
 // Only tease when the chased hand would pay more than double the bet.
 // Payouts are per-bet multipliers, so payout > 2 means straight or better
 // (two pairs and three of a kind pay exactly 2).
@@ -29,7 +30,7 @@ class GameManagerComponent extends Component {
     this.win = 0;            // win meter (the "Wins" box)
     this.state = 'idle';
     this.hand = [];
-    this.doubleCardObject = null;
+    this.doubleCards = []; // tuplaus cards on the table, oldest first
     this.redSevenKeeps = true;
     this.attractMode = true;
     this.attractSequenceTimeout = null;
@@ -63,6 +64,8 @@ class GameManagerComponent extends Component {
     this.gameObject.engine.addGameObject(deckObject);
     this.deck = deckObject.getComponent('Deck');
     this.deckRender = deckObject.getComponent('Render');
+    // Tapping the deck doubles as the PLAY button: deal, or draw after holds.
+    if (this.deckRender) this.deckRender.onClick = () => this.playDealOrDraw();
   }
 
   addEventListener(event, callback) {
@@ -92,11 +95,12 @@ class GameManagerComponent extends Component {
   setState(state) { this.state = state; this.emit('stateChanged', { state }); }
   setWin(win) { this.win = win; this.emit('winChanged', { win }); }
 
-  // Hand row: card bottoms (cards are 0.532 tall, so bottom = y - 0.266)
+  // Hand row: card bottoms (cards are 0.585 tall, so bottom = y - 0.293)
   // rest a small gap above the bottom gray band (LAYOUT.bottomBandTopY).
-  _handSlot(i) { return { x: -1.0 + i * 0.5, y: -0.5, z: 0 }; }
-  // The tuplaus card is dealt face-up onto the deck's position.
-  _doubleSlot() { return { x: -1.0, y: 0.35, z: 0 }; }
+  _handSlot(i) { return { x: -1.0 + i * 0.5, y: -0.46, z: 0 }; }
+  // The tuplaus card is dealt face-up to the center of the (now cleared)
+  // hand row, where the eye already rests during play.
+  _doubleSlot() { return { x: 0, y: -0.46, z: 0 }; }
   _delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ── Bet ──────────────────────────────────────────────────────────────────────
@@ -204,10 +208,11 @@ class GameManagerComponent extends Component {
     }
 
     // Suspense reveal: while the face-up cards sit one card away from a
-    // paying hand, hold each replacement face-down a beat before flipping,
-    // and every tease (a reveal that still doesn't pay) stretches the next
-    // pause further. The counter is local to this draw, so the tempo resets
-    // to normal by itself once the hand is resolved, win or lose.
+    // paying hand, each replacement turns over in slow motion — the flip
+    // starts on time but takes longer — and every tease (a reveal that
+    // still doesn't pay) stretches the next flip further. The counter is
+    // local to this draw, so the tempo resets to normal by itself once the
+    // hand is resolved, win or lose.
     let teases = 0;
     for (let k = 0; k < dealt.length; k++) {
       const rc = dealt[k].replacement.getComponent('Card');
@@ -219,13 +224,12 @@ class GameManagerComponent extends Component {
         .map(o => o.getComponent('Card'))
         .filter(c => c.faceUp);
       const tense = teases > 0 || isOneCardAway(visible, SUSPENSE_MIN_PAYOUT);
-      if (tense) {
-        await this._delay(Math.min(
-          SUSPENSE_PAUSE_MS + teases * SUSPENSE_PAUSE_STEP_MS,
-          SUSPENSE_PAUSE_MAX_MS));
-      }
+      const flipScale = tense
+        ? Math.min(SUSPENSE_FLIP_SCALE + teases * SUSPENSE_FLIP_SCALE_STEP,
+                   SUSPENSE_FLIP_SCALE_MAX)
+        : 1;
 
-      await rc.flip();
+      await rc.flip(false, flipScale);
       if (tense && !isPaying(visible.concat([rc]), SUSPENSE_MIN_PAYOUT)) teases++;
       if (k < dealt.length - 1) await this._delay(80);
     }
@@ -257,6 +261,8 @@ class GameManagerComponent extends Component {
   collect() {
     if (this.state !== 'won' && this.state !== 'gamble') return;
     if (this.win <= 0) return;
+    // The tuplaus stack stays on the table after collecting — it is swept
+    // back into the deck (and shuffled in) when the next hand starts.
     const amount = this.win;
     this.credits += amount;
     this.setWin(0);
@@ -265,18 +271,29 @@ class GameManagerComponent extends Component {
     this._returnToIdle();
   }
 
-  startDouble() {
+  async startDouble() {
     if (this.state !== 'won') return;
     if (!canDouble(this.win, this.jackpot)) return;
-    this.setState('gamble');
+    // Entering tuplaus clears the table: the hand (or previous double card)
+    // flies back to the deck and the deck reshuffles. The first double card
+    // is then dealt FACE DOWN to the center of the hand row, waiting for
+    // the small/large guess to flip it.
+    this.setState('gambleDeal');
     this.emit('doubleStarted', {});
     this.audioComponent?.playButtonPress();
+    await this._clearTable();
+    this.deck.shuffle();
+    this.emit('shuffle', {});
+    await this.deckRender?.playShuffle();
+    await this._dealDoubleCard();
+    this.setState('gamble');
   }
 
-  async chooseDouble(guess) {
-    if (this.state !== 'gamble') return;
-    this.setState('gambleReveal');
-
+  // Deal the next double card face-down onto the center slot, stacked on
+  // top of any earlier cards of the run (fanned a touch to the right so
+  // the history stays visible). Jokers are skipped — tuplaus is played
+  // with naturals only.
+  async _dealDoubleCard() {
     let cardObject = this.deck.dealCard();
     let card = cardObject.getComponent('Card');
     let guard = 0;
@@ -286,10 +303,44 @@ class GameManagerComponent extends Component {
       cardObject = this.deck.dealCard();
       card = cardObject.getComponent('Card');
     }
-    this._setDoubleCard(cardObject);
+    const n = this.doubleCards.length;
+    this.doubleCards.push(cardObject);
     card.faceUp = false;
     this.emit('cardDealt', { count: 1 });
-    await card.dealTo(this._doubleSlot());
+    const slot = this._doubleSlot();
+    await card.dealTo({ x: slot.x + 0.055 * n, y: slot.y, z: slot.z + 0.02 * (n + 1) });
+    return card;
+  }
+
+  // Top card of the tuplaus stack (the one a guess applies to), if any.
+  _topDoubleCard() {
+    const obj = this.doubleCards[this.doubleCards.length - 1];
+    return obj?.getComponent('Card') ?? null;
+  }
+
+  // Fly the whole tuplaus stack back onto the deck (face down) and return
+  // the cards to the pile. Used when the run ends and by collect().
+  async _retireDoubleCards() {
+    const objs = this.doubleCards;
+    this.doubleCards = [];
+    await Promise.all(objs.map(async obj => {
+      if (!obj.engine) { this.deck.returnCards([obj]); return; }
+      const c = obj.getComponent('Card');
+      if (c.faceUp) await c.flip();
+      await c.returnToDeck(this.deck.gameObject.position);
+      this.deck.returnCards([obj]);
+    }));
+  }
+
+  async chooseDouble(guess) {
+    if (this.state !== 'gamble') return;
+    this.setState('gambleReveal');
+
+    // The first card of a run waits face-down (startDouble dealt it);
+    // afterwards the revealed cards stay on the table, and each new guess
+    // deals the next card from the remaining deck on top of them.
+    let card = this._topDoubleCard();
+    if (!card || card.faceUp) card = await this._dealDoubleCard();
     await card.flip();
     this.emit('doubleCard', { value: card.value, suit: card.suit });
 
@@ -299,7 +350,9 @@ class GameManagerComponent extends Component {
     if (outcome === 'win') {
       this.setWin(this.win * 2);
       this.emit('doubleResult', { outcome, win: this.win });
-      this.setState('won');
+      // The card stays put; the run continues in 'gamble' (guess again or
+      // collect) unless the win outgrew the double limit.
+      this.setState(canDouble(this.win, this.jackpot) ? 'gamble' : 'won');
     } else if (outcome === 'keep') {
       this.emit('doubleResult', { outcome, win: this.win });
       this.setState('won');
@@ -309,26 +362,16 @@ class GameManagerComponent extends Component {
       this.screenShake?.shake(0.2, 0.4);
       this.emit('doubleResult', { outcome, win: 0 });
       await this._delay(700);
+      // The busted stack stays on display; the next hand's _clearTable
+      // sweeps it into the deck before that hand's shuffle.
       this._returnToIdle();
     }
   }
 
   // ── Table / card helpers, idle / attract, init ───────────────────────────────
 
-  _setDoubleCard(cardObject) {
-    this._clearDoubleCard();
-    this.doubleCardObject = cardObject;
-  }
-
-  _clearDoubleCard() {
-    if (this.doubleCardObject?.engine) {
-      this.deck.returnCards([this.doubleCardObject]);
-    }
-    this.doubleCardObject = null;
-  }
-
   async _clearTable() {
-    this._clearDoubleCard();
+    const retiring = this._retireDoubleCards();
     await Promise.all(this.hand.map(async card => {
       if (!card.engine) return;
       const c = card.getComponent('Card');
@@ -337,6 +380,7 @@ class GameManagerComponent extends Component {
       await c.returnToDeck(this.deck.gameObject.position);
       this.deck.returnCards([card]);
     }));
+    await retiring;
     this.hand = [];
   }
 
@@ -362,6 +406,9 @@ class GameManagerComponent extends Component {
 
   startAttractMode() {
     if (!this.attractMode) return;
+    // Attract demo hands use the same table area — sweep any leftover
+    // tuplaus stack home before the demo starts.
+    if (this.doubleCards.length) this._retireDoubleCards();
     this.setState('attract');
     this.logger.log('STATE', 'Starting attract mode');
 

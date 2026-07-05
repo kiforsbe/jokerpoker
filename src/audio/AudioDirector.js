@@ -8,6 +8,8 @@ export class AudioDirector {
     this.audio = audioSystem;
     this.gm = gameManager;
     this._doubleStreak = 0;   // successful doubles this gamble run; drives tune tempo
+    this._tuplausActive = false; // tune keeps playing across the whole gamble run
+    this._graceUntil = 0;     // lets the collect count-up outlive the idle transition
     this._registerEffects();
     this._subscribe();
     // When audio becomes available (after the user's first interaction), start the
@@ -35,6 +37,16 @@ export class AudioDirector {
       new RetroSound(ctx, g, 260, 0.07).setWaveform('triangle')
         .addFrequencySlide(260, 540).setVolume(0.5)
         .setRepeats(params?.count ?? 1));
+    // Successful double: a short triumphant rising sweep, played over a
+    // brief dip in the tuplaus tune rather than replacing it.
+    a.registerEffect('doubleWin', (ctx, g) =>
+      new RetroSound(ctx, g, 523, 0.12).setWaveform('square')
+        .addFrequencySlide(523, 1046).setVolume(0.5).setRepeats(3));
+  }
+
+  // Dip the tuplaus tune under a sound effect; it resumes right after.
+  _duckMusic(seconds) {
+    if (this._tuplausActive) this.audio.music?.duck?.(seconds);
   }
 
   _musicReady() {
@@ -107,26 +119,59 @@ export class AudioDirector {
 
   _subscribe() {
     const gm = this.gm;
-    gm.addEventListener('shuffle', () => this._sfx('shuffle'));
-    gm.addEventListener('cardDealt', ({ count }) => this._sfx('cardDeal', { count }));
+    gm.addEventListener('shuffle', () => {
+      this._sfx('shuffle');
+      this._duckMusic(0.5);
+    });
+    gm.addEventListener('cardDealt', ({ count }) => {
+      this._sfx('cardDeal', { count });
+      this._duckMusic(0.6);
+    });
     gm.addEventListener('noWin', () => this._sfx('lose'));
     gm.addEventListener('win', ({ result }) => {
       this._doubleStreak = 0;   // fresh hand win: gamble run starts over
+      this._tuplausActive = false;
       this._playWinMelody(result.rank);
     });
-    gm.addEventListener('collected', ({ amount }) => this._playCountUp(amount));
-    gm.addEventListener('doubleStarted', () => this._playTuplaus());
+    gm.addEventListener('collected', ({ amount }) => {
+      // Accepting the win ends the tuplaus tune; the count-up tally takes
+      // over, with a grace window so the idle transition can't cut it off.
+      this._tuplausActive = false;
+      this._graceUntil = Date.now() + 2500;
+      this._playCountUp(amount);
+    });
+    gm.addEventListener('doubleStarted', () => {
+      this._tuplausActive = true;
+      this._playTuplaus();
+    });
     gm.addEventListener('doubleResult', ({ outcome }) => {
-      if (outcome === 'win') this._doubleStreak++;
-      else this._doubleStreak = 0;   // lose/keep ends the run
-      if (outcome === 'lose') this._sfx('lose');
-      // 'keep' (red 7) auto-collects immediately, which plays the count-up tally;
-      // skip the win melody here so it isn't cut off mid-note by that count-up.
-      else if (outcome === 'win') this._playWinMelody(3);
+      if (outcome === 'win') {
+        this._doubleStreak++;
+        // The tune plays on through the whole run: the triumph sweep rides
+        // a brief dip, then the loop restarts at the faster streak tempo.
+        this._sfx('doubleWin');
+        this._duckMusic(0.7);
+        this._playTuplaus();
+      } else {
+        this._doubleStreak = 0;
+        this._tuplausActive = false;
+        // 'keep' (red 7) auto-collects; the collected handler takes over.
+        if (outcome === 'lose') {
+          this._stopMusic();
+          this._sfx('lose');
+        }
+      }
     });
     gm.addEventListener('stateChanged', ({ state }) => {
-      if (state === 'attract') this._playAttract();
-      else this._stopMusic();
+      if (state === 'dealing') this._tuplausActive = false;
+      if (state === 'attract') {
+        this._tuplausActive = false;
+        this._playAttract();
+      } else if (!this._tuplausActive && Date.now() >= this._graceUntil) {
+        // The tuplaus tune plays through every gamble state; anything else
+        // silences the music (unless the collect count-up is still going).
+        this._stopMusic();
+      }
     });
   }
 }

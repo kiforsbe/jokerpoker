@@ -45,7 +45,10 @@ export function createStatusBar(gameManager) {
   const credits = createStatusBox('Credits', -0.66, 0); // left of the bar center
   const wins    = createStatusBox('Wins',     0.66, 0); // right of the bar center
   const bet = new GameObject('Status_Bet');
-  bet.addComponent(new BetDisplayComponent(0.62, 0.18));
+  const betDisplay = bet.addComponent(new BetDisplayComponent(0.62, 0.18));
+  // Clicking/tapping the bet oval cycles the bet size (same as the BET
+  // button; cycleBet itself ignores clicks outside idle/attract).
+  betDisplay.onClick = () => gameManager.cycleBet();
   bet.position.set(0, 0, 0); // bar center
   bar.add(credits);
   bar.add(bet);

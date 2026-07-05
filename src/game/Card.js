@@ -60,7 +60,9 @@ class CardComponent extends Component {
     // hold() must NOT call back into GameManager.holdCard or it recurses.
   }
 
-  async flip(instant = false) {
+  // `durationScale` stretches the turn animation (2 = twice as slow);
+  // the draw-phase suspense reveal passes > 1 for near-win teases.
+  async flip(instant = false, durationScale = 1) {
     if (instant) {
       this.faceUp = !this.faceUp;
       const renderComponent = this.gameObject.getComponent('Render');
@@ -72,7 +74,7 @@ class CardComponent extends Component {
         this.flipAnimation.startFlip(!this.faceUp, () => {
           this.faceUp = !this.faceUp;
           resolve();
-        });
+        }, durationScale);
       });
     }
   }
