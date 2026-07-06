@@ -25,18 +25,16 @@ class AudioSystem {
     if (!this.initializationPromise) {
       this.logger.log('DEBUG', 'AudioSystem: Waiting for user interaction to initialize');
       this.initializationPromise = new Promise((resolve) => {
+        // NOTE: no 'touchstart' here — iOS does not count it as a user
+        // activation, so an AudioContext created/resumed from it stays
+        // suspended forever. touchend/pointerup/click all qualify.
+        const events = ['pointerup', 'touchend', 'click', 'keydown'];
         const initHandler = async () => {
           await this.initialize();
           resolve(true);
-          window.removeEventListener('click', initHandler);
-          window.removeEventListener('keydown', initHandler);
-          window.removeEventListener('touchstart', initHandler);
+          events.forEach(e => window.removeEventListener(e, initHandler));
         };
-
-        // Wait for user interaction
-        window.addEventListener('click', initHandler, { once: true });
-        window.addEventListener('keydown', initHandler, { once: true });
-        window.addEventListener('touchstart', initHandler, { once: true });
+        events.forEach(e => window.addEventListener(e, initHandler, { once: true }));
       });
     }
     return this.initializationPromise;
@@ -54,10 +52,23 @@ class AudioSystem {
       this.masterGain.gain.value = this.volume;
       this.masterGain.connect(this.audioContext.destination);
 
-      // Ensure audio context is running
+      // Ensure audio context is running. On iOS Safari resume() can stay
+      // pending forever if the browser didn't accept the triggering event
+      // as a user activation — never let that block boot: give it a short
+      // window, then fall through and keep retrying on later gestures.
       if (this.audioContext.state === 'suspended') {
-        await this.audioContext.resume();
+        // resume() may hang forever OR reject outright when the browser
+        // refuses the activation — either way audio must stay usable and
+        // simply retry later, so swallow the rejection here.
+        await Promise.race([
+          this.audioContext.resume().catch(() => {}),
+          new Promise(r => setTimeout(r, 400)),
+        ]);
       }
+      // Keep the context alive for the app's lifetime: iOS suspends (or
+      // 'interrupt's) it on sleep / app switch and never resumes it by
+      // itself, and the boot resume above may itself have been rejected.
+      this._installAutoResume();
 
       this.initialized = true;
 
@@ -84,6 +95,31 @@ class AudioSystem {
     } catch (error) {
       this.logger.log('ERROR', 'AudioSystem: Failed to initialize', { error: error.message });
       return false;
+    }
+  }
+
+  // Resume the context whenever it is not running: after the boot unlock
+  // was rejected (retry on the next accepted gesture) and after iOS
+  // suspends it on phone sleep / app switch (retry when the page becomes
+  // visible again, with the gesture listeners as a backstop for iOS
+  // versions that demand a fresh user activation).
+  _installAutoResume() {
+    if (this._autoResumeInstalled) return;
+    this._autoResumeInstalled = true;
+
+    const tryResume = () => {
+      const ctx = this.audioContext;
+      if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') {
+        ctx.resume().catch(() => { /* retried on the next signal */ });
+      }
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) tryResume();
+    });
+    window.addEventListener('pageshow', tryResume);
+    window.addEventListener('focus', tryResume);
+    for (const e of ['pointerup', 'touchend', 'keydown']) {
+      window.addEventListener(e, tryResume);
     }
   }
 

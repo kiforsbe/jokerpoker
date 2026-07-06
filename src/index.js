@@ -74,7 +74,17 @@ class JokerPokerGame {
         status.textContent = 'TAP TO START';
       }
 
-      await this.audioSystem.init();
+      // The game must never be stuck behind audio: if the unlock doesn't
+      // finish shortly after the first gesture (iOS Safari can reject or
+      // stall it), boot anyway — the audio system keeps retrying on later
+      // gestures by itself.
+      const firstGestureThenGrace = new Promise((res) => {
+        const arm = () => setTimeout(res, 1500);
+        for (const e of ['pointerup', 'touchend', 'keydown']) {
+          window.addEventListener(e, arm, { once: true });
+        }
+      });
+      await Promise.race([this.audioSystem.init(), firstGestureThenGrace]);
 
       if (intro && status) {
         intro.classList.remove('ready');

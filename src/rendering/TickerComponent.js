@@ -105,8 +105,16 @@ class TickerComponent extends RenderComponent {
     TICKER_SECTIONS.forEach((segs, i) => {
       const pillW = widths[i] + PILL_PAD_X * 2;
       ctx.fillStyle = PILL_FILL;
+      // Manual rounded path (arcTo) — ctx.roundRect is missing on
+      // Safari < 16, and a throw here would abort the whole scene load.
+      const r = pillH / 2, py = PILL_MARGIN_Y;
       ctx.beginPath();
-      ctx.roundRect(x, PILL_MARGIN_Y, pillW, pillH, pillH / 2);
+      ctx.moveTo(x + r, py);
+      ctx.arcTo(x + pillW, py, x + pillW, py + pillH, r);
+      ctx.arcTo(x + pillW, py + pillH, x, py + pillH, r);
+      ctx.arcTo(x, py + pillH, x, py, r);
+      ctx.arcTo(x, py, x + pillW, py, r);
+      ctx.closePath();
       ctx.fill();
       let tx = x + PILL_PAD_X;
       for (const seg of segs) {

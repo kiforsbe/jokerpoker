@@ -33,6 +33,10 @@ export class MusicPlayer {
       const ms = total * 1000;
       this._timer = setInterval(() => {
         if (this._stopFlag) return;
+        // While the context is suspended (phone asleep / app in the
+        // background) currentTime is frozen — scheduling would stack every
+        // iteration onto the same instant and blast them all on resume.
+        if (this.ctx.state !== 'running') return;
         this._schedule(notes, this.ctx.currentTime + 0.02);
       }, ms);
     }
