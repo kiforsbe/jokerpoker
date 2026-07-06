@@ -31,7 +31,7 @@ Any static file server works (VS Code Live Server, `python -m http.server`, …)
 
 ## Controls
 
-Click the cabinet buttons, or use the keyboard. The chip in the top-right corner (or `F3`) cycles three UI modes: **cabinet** (buttons below the screen), **overlay** (the same buttons translucent over it), and **screen-only** (no buttons — the playfield does everything: tap the deck to deal/draw or start the double after a win, tap cards to hold, the bet oval to change the bet, the Wins box to collect, and the left/right field half to guess LOW/HIGH). The choice is remembered.
+Click the cabinet buttons, or use the keyboard. The ⤢ chip in the top-right corner toggles fullscreen (hidden on iPhone Safari, which has no page-fullscreen API — use Add to Home Screen there). Next to it, the ▤ chip (or `F3`) cycles three UI modes: **cabinet** (buttons below the screen), **overlay** (the same buttons translucent over it), and **screen-only** (no buttons — the playfield does everything: tap the deck to deal/draw or start the double after a win, tap cards to hold, the bet oval to change the bet, the Wins box to collect, and the left/right field half to guess LOW/HIGH). The choice is remembered.
 
 | Key | Action |
 | --- | --- |

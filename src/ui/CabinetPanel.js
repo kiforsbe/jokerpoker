@@ -34,6 +34,7 @@ export class CabinetPanel {
     this._injectStyles();
     this._build();
     this._buildModeSwitch();
+    this._buildFullscreenSwitch();
     this._bindKeyboard();
     gameManager.addEventListener('stateChanged', () => this._refresh());
     gameManager.addEventListener('winChanged', () => this._refresh());
@@ -76,13 +77,15 @@ export class CabinetPanel {
       /* screen mode: no chrome at all */
       #cabinet.hidden { display: none; }
 
-      /* mode switch chip, top-right corner */
-      #ui-mode { position: fixed; top: 8px; right: 8px; z-index: 30;
+      /* corner chips, top-right: UI mode + fullscreen */
+      .ui-chip { position: fixed; top: 8px; z-index: 30;
         width: 36px; height: 30px; border: none; border-radius: 7px;
         background: rgba(140, 150, 180, 0.18); color: #9aa2bd;
         font-size: 15px; line-height: 1; cursor: pointer;
         touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-      #ui-mode:hover { background: rgba(140, 150, 180, 0.4); color: #e8e8e4; }
+      .ui-chip:hover { background: rgba(140, 150, 180, 0.4); color: #e8e8e4; }
+      #ui-mode { right: 8px; }
+      #fullscreen { right: 50px; font-size: 17px; }
     `;
     document.head.appendChild(s);
   }
@@ -114,9 +117,42 @@ export class CabinetPanel {
   // Corner chip (and F3) cycling the three UI modes: cabinet panel below
   // the screen, translucent overlay on it, or screen-only (all functions
   // then live on the playfield itself).
+  // Fullscreen toggle chip beside the mode chip. Hidden where page
+  // fullscreen isn't supported (iPhone Safari): there the layout already
+  // tracks the collapsing URL bar, and true fullscreen needs
+  // Add-to-Home-Screen.
+  _buildFullscreenSwitch() {
+    const el = document.documentElement;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!request) return;
+
+    const b = document.createElement('button');
+    b.id = 'fullscreen';
+    b.className = 'ui-chip';
+    const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const render = () => {
+      b.textContent = isFs() ? '⤡' : '⤢';
+      b.title = isFs() ? 'Exit fullscreen' : 'Fullscreen';
+    };
+    b.addEventListener('click', () => {
+      if (isFs()) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      } else {
+        const p = request.call(el);
+        p?.catch?.(() => { /* denied: stay windowed */ });
+      }
+    });
+    for (const e of ['fullscreenchange', 'webkitfullscreenchange']) {
+      document.addEventListener(e, render);
+    }
+    render();
+    document.body.appendChild(b);
+  }
+
   _buildModeSwitch() {
     const b = document.createElement('button');
     b.id = 'ui-mode';
+    b.className = 'ui-chip';
     b.textContent = '▤';
     b.addEventListener('click', () => cycleUiMode());
     document.body.appendChild(b);
