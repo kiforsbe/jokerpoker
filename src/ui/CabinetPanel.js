@@ -1,6 +1,8 @@
 // Authentic RAY/PAF Jokeripokeri cabinet button panel as a DOM overlay below the CRT.
 // Color-coded, trilingual (Swedish / Finnish / English) buttons.
 import { getUiMode, cycleUiMode, onUiModeChanged } from './uiMode.js';
+import { getLanguage, cycleLanguage, onLanguageChanged } from '../i18n.js';
+import { getTheme, toggleTheme, onThemeChanged } from '../rendering/theme.js';
 
 const COLORS = {
   red:    { bg: '#b3231f', lit: '#ff4b44', text: '#ffffff' },
@@ -35,6 +37,8 @@ export class CabinetPanel {
     this._build();
     this._buildModeSwitch();
     this._buildFullscreenSwitch();
+    this._buildLanguageSwitch();
+    this._buildResolutionSwitch();
     this._bindKeyboard();
     gameManager.addEventListener('stateChanged', () => this._refresh());
     gameManager.addEventListener('winChanged', () => this._refresh());
@@ -86,6 +90,9 @@ export class CabinetPanel {
       .ui-chip:hover { background: rgba(140, 150, 180, 0.4); color: #e8e8e4; }
       #ui-mode { right: 8px; }
       #fullscreen { right: 50px; font-size: 17px; }
+      #lang, #res { right: 92px; font-size: 12px; font-weight: bold;
+        letter-spacing: 0.5px; }
+      #res { right: 134px; }
     `;
     document.head.appendChild(s);
   }
@@ -114,9 +121,39 @@ export class CabinetPanel {
     document.body.appendChild(this.root);
   }
 
-  // Corner chip (and F3) cycling the three UI modes: cabinet panel below
-  // the screen, translucent overlay on it, or screen-only (all functions
-  // then live on the playfield itself).
+  // Display language chip: cycles EN -> SV -> FI for all screen text (the
+  // cabinet buttons stay trilingual like the original printed panel).
+  _buildLanguageSwitch() {
+    const b = document.createElement('button');
+    b.id = 'lang';
+    b.className = 'ui-chip';
+    const render = (lang) => {
+      b.textContent = lang.toUpperCase();
+      b.title = `Language: ${lang.toUpperCase()} (click to switch)`;
+    };
+    b.addEventListener('click', () => cycleLanguage());
+    onLanguageChanged(render);
+    render(getLanguage());
+    document.body.appendChild(b);
+  }
+
+  // Resolution chip (also F2): cycles the virtual screen between low
+  // (640x480), medium (960x720), and high (full) resolution.
+  _buildResolutionSwitch() {
+    const LABELS = { retro: 'LO', medium: 'MD', hires: 'HI' };
+    const b = document.createElement('button');
+    b.id = 'res';
+    b.className = 'ui-chip';
+    const render = (theme) => {
+      b.textContent = LABELS[theme.name] ?? '?';
+      b.title = `Resolution: ${theme.name} (click or F2 to switch)`;
+    };
+    b.addEventListener('click', () => toggleTheme());
+    onThemeChanged(render);
+    render(getTheme());
+    document.body.appendChild(b);
+  }
+
   // Fullscreen toggle chip beside the mode chip. Hidden where page
   // fullscreen isn't supported (iPhone Safari): there the layout already
   // tracks the collapsing URL bar, and true fullscreen needs
@@ -149,6 +186,9 @@ export class CabinetPanel {
     document.body.appendChild(b);
   }
 
+  // Corner chip (and F3) cycling the three UI modes: cabinet panel below
+  // the screen, translucent overlay on it, or screen-only (all functions
+  // then live on the playfield itself).
   _buildModeSwitch() {
     const b = document.createElement('button');
     b.id = 'ui-mode';

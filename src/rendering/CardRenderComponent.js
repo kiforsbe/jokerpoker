@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
 import { getTheme, paintThemed, onThemeChanged, fillTextCentered, PALETTE, LAYOUT } from './theme.js';
+import { t, onLanguageChanged } from '../i18n.js';
 
 // Card face texture resolution. Higher than the mesh needs so text/pips stay
 // crisp under the CRT shader; matches the 2.5:3.5 card ratio (538/384 = 1.4).
@@ -38,6 +39,7 @@ const COLORS = {
   courtPanelRed: '#fbeaea',
   courtPanelBlack: '#eceef4',
   jokerText: '#7a2fb0',
+  jokerPanel: '#f2ecf8',
 };
 
 // All fractions below are of the canvas width (w) or height (h) unless noted.
@@ -132,9 +134,6 @@ const CORNER_INDEX_X_SCALE = 1 / 7; // centered in columns 1-2 of a 7-column mod
 const CORNER_INDEX_RANK_Y_SCALE = 0.13;
 const CORNER_INDEX_SUIT_Y_SCALE = 0.30;
 
-// Joker.
-const JOKER_STAR_SCALE = 0.36;
-const JOKER_TEXT_SCALE = 0.16;
 
 // Ace: a single modest center pip, per the photos.
 const ACE_SYMBOL_SCALE = 0.32;
@@ -180,6 +179,7 @@ class CardRenderComponent extends RenderComponent {
 
   onRemove() {
     if (this._offTheme) { this._offTheme(); this._offTheme = null; }
+    if (this._offLang) { this._offLang(); this._offLang = null; }
     super.onRemove();
   }
 
@@ -247,6 +247,22 @@ class CardRenderComponent extends RenderComponent {
         });
       }
     });
+    this._offLang = onLanguageChanged(() => {
+      if (!this._renderSystem) return;
+      if (this.holdLabel) {
+        this.updateTexture(this.holdLabel, (ctx) => {
+          paintThemed(ctx, (c) => this._drawHoldLabel(c), HOLD_WORLD_WIDTH);
+        });
+      }
+      // The joker card carries translated text ("JOKERI"), so repaint the
+      // face too.
+      const card = this.gameObject?.getComponent('Card');
+      if (card?.value === 'Joker' && this.cardMesh) {
+        this.updateTexture(this.cardMesh, (context) => {
+          paintThemed(context, (ctx) => this.drawCard(ctx, card), this.CARD_WIDTH);
+        });
+      }
+    });
   }
 
   // Cyan "hold" box with a double blue border, per the reference photos.
@@ -263,7 +279,7 @@ class CardRenderComponent extends RenderComponent {
     ctx.fillStyle = PALETTE.holdText;
     ctx.font = getTheme().uiFont(Math.round(h * 0.55));
     ctx.textAlign = 'center';
-    fillTextCentered(ctx, 'hold', w / 2, h / 2);
+    fillTextCentered(ctx, t('hold'), w / 2, h / 2, 'H');
   }
 
   // Tight grid pip arrangements matching the machine's cards (fractions of
@@ -333,24 +349,50 @@ class CardRenderComponent extends RenderComponent {
     ctx.textBaseline = 'middle';
 
     // ---- Corner indices: value over suit, tucked into the corner, top-left and
-    // bottom-right (rotated). "10" gets a smaller font so it stays in its column. ----
-    const idxText = value === '10' ? '10' : (value === 'Joker' ? '★' : value.charAt(0));
+    // bottom-right (rotated). "10" gets a smaller font so it stays in its column.
+    // The joker instead spells its name vertically down the corner, like on
+    // real decks. ----
     const idxFont = Math.round(w * RANK_GLYPH_SCALE);
     const cornerX = w * CORNER_INDEX_X_SCALE;
-    const drawIndex = () => {
-      // Rank value
-      ctx.font = getTheme().cardFont(idxFont);
-      const valW = ctx.measureText(idxText).width;
-      ctx.fillText(idxText, cornerX, h * CORNER_INDEX_RANK_Y_SCALE);
-      // Suit, sized so its glyph width matches the rank width (capped at the rank
-      // font so a wide "10" doesn't blow it up).
-      let suitFont = idxFont;
-      ctx.font = getTheme().cardFont(suitFont);
-      const suitW = ctx.measureText(sym).width;
-      suitFont = Math.min(idxFont, suitFont * (valW / suitW));
-      ctx.font = getTheme().cardFont(Math.round(suitFont));
-      ctx.fillText(sym, cornerX, h * CORNER_INDEX_SUIT_Y_SCALE);
-    };
+    let drawIndex;
+    if (value === 'Joker') {
+      // The card's name spelled vertically down the corner, translated
+      // ("JOKERI" in Finnish). The jester art leaves this column wider
+      // than the normal index column, so the letters run large. VT323
+      // (retro) inks ~35% smaller than bold Arial (hires) at equal px,
+      // so the retro size compensates.
+      const name = t('joker');
+      const letterFont = Math.round(w * (getTheme().pixelCourts ? 0.24 : 0.18));
+      // Generous top margin; the column then runs well down the card edge
+      // (the mirrored one occupies the opposite edge, so they can't meet).
+      const topY = h * 0.10;
+      // Six letters (JOKERI) squeeze into the same corner band as five.
+      const stepY = (h * 0.60) / (name.length - 1);
+      drawIndex = () => {
+        ctx.fillStyle = COLORS.jokerText;
+        ctx.font = getTheme().cardFont(letterFont);
+        name.split('').forEach((ch, i) => {
+          ctx.fillText(ch, cornerX, topY + i * stepY);
+        });
+      };
+    } else {
+      const idxText = value === '10' ? '10' : value.charAt(0);
+      drawIndex = () => {
+        // Rank value
+        ctx.fillStyle = color;
+        ctx.font = getTheme().cardFont(idxFont);
+        const valW = ctx.measureText(idxText).width;
+        ctx.fillText(idxText, cornerX, h * CORNER_INDEX_RANK_Y_SCALE);
+        // Suit, sized so its glyph width matches the rank width (capped at the rank
+        // font so a wide "10" doesn't blow it up).
+        let suitFont = idxFont;
+        ctx.font = getTheme().cardFont(suitFont);
+        const suitW = ctx.measureText(sym).width;
+        suitFont = Math.min(idxFont, suitFont * (valW / suitW));
+        ctx.font = getTheme().cardFont(Math.round(suitFont));
+        ctx.fillText(sym, cornerX, h * CORNER_INDEX_SUIT_Y_SCALE);
+      };
+    }
     drawIndex(); // top-left, as drawn
     ctx.save();
     // Flip the canvas 180° around its center so the same drawIndex() call
@@ -360,20 +402,13 @@ class CardRenderComponent extends RenderComponent {
     drawIndex();
     ctx.restore();
 
-    // ---- Joker ----
+    // ---- Joker: a jester figure, pixel-art in retro, vector in hires ----
     if (value === 'Joker') {
-      // Large centered star...
-      ctx.fillStyle = color;
-      ctx.font = `${Math.round(w * JOKER_STAR_SCALE)}px Arial, sans-serif`;
-      ctx.fillText('★', w / 2, h / 2);
-      // ...with "JOKER" banked vertically through the middle of it.
-      ctx.fillStyle = COLORS.jokerText;
-      ctx.font = `bold ${Math.round(w * JOKER_TEXT_SCALE)}px Arial, sans-serif`;
-      ctx.save();
-      ctx.translate(w / 2, h / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillText('JOKER', 0, 0);
-      ctx.restore();
+      if (getTheme().pixelCourts) {
+        this.drawPixelJoker(ctx, w, h);
+      } else {
+        this.drawVectorJoker(ctx, w, h);
+      }
       return;
     }
 
@@ -525,6 +560,154 @@ class CardRenderComponent extends RenderComponent {
     ctx.moveTo(panelX, panelY + panelH / 2);
     ctx.lineTo(panelX + panelW, panelY + panelH / 2);
     ctx.stroke();
+  }
+
+  // Full-height (unmirrored) pixel jester: three-pointed cap with bells,
+  // face, zigzag ruff collar, motley torso with diamond pattern, belt, and
+  // a belled hem. Same 15-column grid technique as the court figures.
+  static get JOKER_PIXELS() {
+    // Palette keys: Y gold, R red, P purple, S skin, K black, '.' empty.
+    return [
+      '.......Y.......',
+      '.......P.......',
+      '.Y.....P.....Y.',
+      '.R....PPP....R.',
+      '.RR...PPP...RR.',
+      '.RRR..PPP..RRR.',
+      '..RRR.PPP.RRR..',
+      '..RRRRPPPRRRR..',
+      '...RRRPPPRRR...',
+      '...SSSSSSSSS...',
+      '...SKSSSSSKS...',
+      '...SSSSSSSSS...',
+      '....SSKKKSS....',
+      '..YRYRYRYRYRY..',
+      '.PPPPPPPPPPPPP.',
+      '.PPYPPPYPPPYPP.',
+      '.PYYYPYYYPYYYP.',
+      '.PPYPPPYPPPYPP.',
+      '.PPPPPPPPPPPPP.',
+      '.PPYPPPYPPPYPP.',
+      '.PYYYPYYYPYYYP.',
+      '.PPYPPPYPPPYPP.',
+      '.PPPPPPPPPPPPP.',
+      '.KKKKKKKKKKKKK.',
+      '.PPPPPPPPPPPPP.',
+      '.PPYPPPYPPPYPP.',
+      '.PYPYPYPYPYPYP.',
+      '.Y.Y.Y.Y.Y.Y.Y.',
+    ];
+  }
+
+  drawPixelJoker(ctx, w, h) {
+    const PALETTE_MAP = {
+      Y: '#e8c040', R: '#c81414', P: '#7a2fb0', S: '#f0c8a0', K: '#1a1a1a',
+    };
+    const grid = CardRenderComponent.JOKER_PIXELS;
+    const cols = 15;
+    // Slimmer and more centered than the court panel so the enlarged
+    // vertical JOKER corner columns stay clear; the grid runs top-to-
+    // bottom unmirrored — a joker isn't a mirrored figure on real decks.
+    const panelX = w * 0.21, panelW = w * 0.58;
+    const panelY = h * 0.18, panelH = h * 0.64;
+    const cell = panelW / cols;
+    const rowH = panelH / grid.length;
+    for (let r = 0; r < grid.length; r++) {
+      const line = grid[r];
+      for (let c = 0; c < cols; c++) {
+        const color = PALETTE_MAP[line[c]];
+        if (!color) continue;
+        // +/- 0.5px overdraw hides seams between cells after the blit.
+        ctx.fillStyle = color;
+        ctx.fillRect(panelX + c * cell - 0.5, panelY + r * rowH - 0.5, cell + 1, rowH + 1);
+      }
+    }
+  }
+
+  // Vector jester for hires: court-style tinted panel holding a cap with
+  // three belled points, a round face, a zigzag ruff, and a JOKER caption.
+  drawVectorJoker(ctx, w, h) {
+    const roundRect = (x, y, rw, rh, r) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + rw, y, x + rw, y + rh, r);
+      ctx.arcTo(x + rw, y + rh, x, y + rh, r);
+      ctx.arcTo(x, y + rh, x, y, r);
+      ctx.arcTo(x, y, x + rw, y, r);
+      ctx.closePath();
+    };
+
+    // Panel, matching the court cards' frame but tinted for the joker.
+    const ix = w * COURT_PANEL_X_SCALE, iy = h * COURT_PANEL_Y_SCALE;
+    const iw = w * COURT_PANEL_WIDTH_SCALE, ih = h * COURT_PANEL_HEIGHT_SCALE;
+    roundRect(ix, iy, iw, ih, w * COURT_PANEL_RADIUS_SCALE);
+    ctx.fillStyle = COLORS.jokerPanel;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.jokerText;
+    ctx.lineWidth = Math.max(COURT_PANEL_BORDER_MIN_WIDTH, w * COURT_PANEL_BORDER_SCALE);
+    ctx.stroke();
+
+    const fx = w / 2;                 // face center x
+    const fr = iw * 0.28;             // face radius
+    const fy = iy + ih * 0.52;        // face center y (balanced, no caption)
+    const capBase = fy - fr * 0.55;
+
+    // Cap: two red side points and a taller purple middle point.
+    const point = (x0, x1, tipX, tipY, color) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x0, capBase);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(x1, capBase);
+      ctx.closePath();
+      ctx.fill();
+    };
+    point(fx - fr, fx - fr * 0.1, fx - fr * 1.45, capBase - fr * 1.25, COLORS.red);
+    point(fx + fr * 0.1, fx + fr, fx + fr * 1.45, capBase - fr * 1.25, COLORS.red);
+    point(fx - fr * 0.65, fx + fr * 0.65, fx, capBase - fr * 1.95, COLORS.jokerText);
+    // Bells on the three tips.
+    ctx.fillStyle = '#e8c040';
+    for (const [bx, by] of [
+      [fx - fr * 1.45, capBase - fr * 1.25],
+      [fx + fr * 1.45, capBase - fr * 1.25],
+      [fx, capBase - fr * 1.95],
+    ]) {
+      ctx.beginPath();
+      ctx.arc(bx, by, fr * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Face: skin disc, dot eyes, smile.
+    ctx.fillStyle = '#f0c8a0';
+    ctx.beginPath();
+    ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = COLORS.black;
+    for (const ex of [fx - fr * 0.38, fx + fr * 0.38]) {
+      ctx.beginPath();
+      ctx.arc(ex, fy - fr * 0.15, fr * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = COLORS.black;
+    ctx.lineWidth = Math.max(1.5, w * 0.008);
+    ctx.beginPath();
+    ctx.arc(fx, fy + fr * 0.15, fr * 0.5, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+
+    // Zigzag ruff collar under the face, alternating gold and red. No
+    // caption — the vertical corner columns already name the card.
+    const ruffY = fy + fr * 1.0;
+    const teeth = 6, ruffW = fr * 2.2, tooth = ruffW / teeth;
+    for (let i = 0; i < teeth; i++) {
+      const x0 = fx - ruffW / 2 + i * tooth;
+      ctx.fillStyle = i % 2 ? COLORS.red : '#e8c040';
+      ctx.beginPath();
+      ctx.moveTo(x0, ruffY);
+      ctx.lineTo(x0 + tooth / 2, ruffY + fr * 0.55);
+      ctx.lineTo(x0 + tooth, ruffY);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
   flip() {

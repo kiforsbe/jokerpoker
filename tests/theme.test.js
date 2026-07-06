@@ -37,10 +37,22 @@ test('setTheme ignores unknown names and no-ops on same name', () => {
   off();
 });
 
-test('toggleTheme flips retro/hires', () => {
+test('toggleTheme cycles resolutions: retro -> medium -> hires -> retro', () => {
   setTheme('retro');
+  assert.equal(toggleTheme().name, 'medium');
   assert.equal(toggleTheme().name, 'hires');
   assert.equal(toggleTheme().name, 'retro');
+});
+
+test('medium is a pixelated theme on a denser 960x720 grid', () => {
+  setTheme('medium');
+  const t = getTheme();
+  assert.equal(t.retro, true);
+  assert.equal(t.pixelCourts, true);
+  assert.equal(t.pixelsPerUnit, 360); // 960 / (8/3)
+  assert.equal(textureFilter(), 1003); // still hard pixels
+  assert.match(t.uiFont(32), /VT323/);
+  setTheme('retro');
 });
 
 test('unsubscribe stops notifications', () => {

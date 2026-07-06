@@ -3,6 +3,7 @@ import { RenderComponent } from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
 import GameLogger from '../utils/GameLogger.js';
 import { getTheme, paintThemed, fillTextCentered, textureFilter } from './theme.js';
+import { t } from '../i18n.js';
 
 // World-space sprite size (orthographic units); width feeds the retro pixel grid.
 const WIN_WORLD_WIDTH = 0.5;
@@ -81,7 +82,7 @@ class WinDisplayComponent extends RenderComponent {
     this.onComplete = onComplete;
     
     // Show initial value
-    this.setText(`WIN: ${Math.floor(this.currentValue)}`);
+    this.setText(`${t('win')}: ${Math.floor(this.currentValue)}`);
     
     // Reset scale
     if (this.meshes[0]) {
@@ -107,7 +108,7 @@ class WinDisplayComponent extends RenderComponent {
       const currentIntValue = Math.floor(this.currentValue);
       if (currentIntValue !== this.lastTickValue) {
         this.lastTickValue = currentIntValue;
-        this.setText(`WIN: ${currentIntValue}`);
+        this.setText(`${t('win')}: ${currentIntValue}`);
         
         // Apply pulse effect on each tick
         if (this.meshes[0]) {
@@ -125,7 +126,7 @@ class WinDisplayComponent extends RenderComponent {
       // Check if we've reached the target
       if (this.currentValue >= this.targetValue) {
         this.currentValue = this.targetValue;
-        this.setText(`WIN: ${Math.floor(this.currentValue)}`);
+        this.setText(`${t('win')}: ${Math.floor(this.currentValue)}`);
         
         // Final pulse
         if (this.meshes[0]) {

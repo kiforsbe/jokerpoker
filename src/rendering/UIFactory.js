@@ -25,11 +25,11 @@ export function createTextDisplay(text, x = 0, y = 0, color = '#ffffff', size = 
   return textObject;
 }
 
-function createStatusBox(label, x, y) {
-  const obj = new GameObject(`Status_${label}`);
+function createStatusBox(labelKey, name, x, y) {
+  const obj = new GameObject(`Status_${name}`);
   // 0.73 wide: roomy enough that "Credits 100" fits at the standard 32px
   // retro font without triggering the box's shrink-to-fit fallback.
-  obj.addComponent(new StatusBoxComponent(label, 0.73, 0.18));
+  obj.addComponent(new StatusBoxComponent(labelKey, 0.73, 0.18));
   obj.position.set(x, y, 0);
   return obj;
 }
@@ -42,8 +42,11 @@ export function createStatusBar(gameManager) {
   // LAYOUT.topBandBottomY = 0.74).
   bar.position.set(0, 0.87, 0);
 
-  const credits = createStatusBox('Credits', -0.66, 0); // left of the bar center
-  const wins    = createStatusBox('Wins',     0.66, 0); // right of the bar center
+  // The boxes' outer edges align with the hand row's outer card edges
+  // (slots at ±1.0, cards 0.418 wide -> edges at ±1.209; boxes are 0.73
+  // wide -> centers at ±(1.209 - 0.365)).
+  const credits = createStatusBox('credits', 'Credits', -0.844, 0);
+  const wins    = createStatusBox('wins', 'Wins', 0.844, 0);
   // Clicking/tapping the Wins box collects the win meter — the payout
   // control in screen-only UI mode (collect() guards the game state).
   const winsBox = wins.getComponent('UI');
@@ -52,7 +55,10 @@ export function createStatusBar(gameManager) {
   winsBox.hoverColor = 0xdddddd;
   winsBox.onClick = () => gameManager.collect();
   const bet = new GameObject('Status_Bet');
-  const betDisplay = bet.addComponent(new BetDisplayComponent(0.62, 0.18));
+  // 1.0 wide: the oval is pinned to the screen center with the label to
+  // its left, so the left half must hold the longest label ("Insats") at
+  // full font size.
+  const betDisplay = bet.addComponent(new BetDisplayComponent(1.0, 0.18));
   // Clicking/tapping the bet oval cycles the bet size (same as the BET
   // button; cycleBet itself ignores clicks outside idle/attract).
   betDisplay.onClick = () => gameManager.cycleBet();

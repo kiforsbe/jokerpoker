@@ -7,7 +7,8 @@ A fan-made **tribute** to the classic Finnish **Jokeripokeri** arcade video poke
 ## Features
 
 - **Full Jokeripokeri game loop** — bet, deal, hold, draw, win meter, collect, and *tuplaus* (double-up) with the authentic red-7-keeps rule
-- **Two display themes** — photo-matched hi-res mode and a retro mode with a unified 640×480 virtual pixel grid, procedural pixel-art court cards, and the VT323 CRT font (toggle with **F2**)
+- **Three resolutions** — pixelated 640×480 and 960×720 machine modes (procedural pixel-art court cards, VT323 CRT font) plus a photo-matched hi-res mode; cycle with **F2** or the corner chip
+- **Three display languages** — all screen text (status bar, pay table, hold boxes, win overlay, tuplaus ticker) switches between English, Swedish, and Finnish via a corner chip; the cabinet buttons stay trilingual like the original printed panel
 - **CRT post-processing** — scanline shader, outline/edge-highlight passes
 - **Machine-faithful audio** — procedurally synthesized square/noise waveforms via the Web Audio API: button ticks, shuffle and card-deal sounds, win count-up, tuplaus tunes, and attract-mode music
 - **Authentic trilingual cabinet panel** — Swedish / Finnish / English color-coded buttons rendered as a DOM overlay below the CRT
@@ -42,7 +43,7 @@ Click the cabinet buttons, or use the keyboard. The ⤢ chip in the top-right co
 | `D` | Start double-up (tuplaus) |
 | `S` / `←` | Guess small (1–6) |
 | `L` / `→` | Guess large (8–13) |
-| `F2` | Toggle retro/hi-res theme |
+| `F2` | Cycle resolution: 640×480 / 960×720 / hi-res |
 | `F3` | Cycle UI mode: cabinet / overlay / screen-only |
 | `Alt+D` | Debug panel (`Alt+C` CRT, `Alt+O` outline, `Alt+R` composer, `Alt+W` render mode) |
 

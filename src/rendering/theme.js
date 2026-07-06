@@ -40,26 +40,40 @@ export const LAYOUT = {
   holdY: -0.915,         // hold indicators centered in the slim bottom band
 };
 
+// VT323's glyphs fill ~22% less of the em square than bold monospace
+// (cap ascent 0.59em vs 0.72em), so equal px sizes render visibly
+// smaller; scale requests by 1.35 to compensate. The result is then
+// snapped to a multiple of 16px: VT323 is designed on a 16-per-em
+// pixel grid, so only those sizes rasterize with integer design
+// pixels — anything in between draws alternating thick/thin strokes.
+// The 16px floor keeps the smallest requests readable.
+const vt323Font = (px) => `${Math.max(16, Math.round(px * 1.35 / 16) * 16)}px "VT323", monospace`;
+const vt323CardFont = (px) => `${px}px "VT323", Arial, sans-serif`;
+
 const THEMES = {
+  // Low res: virtual 640x480 machine screen. The 4:3 world area is
+  // 8/3 x 2 world units, so 640 / (8/3) = 240 pixels per unit. Every
+  // texture that passes its world width to paintThemed shares this grid.
   retro: {
     name: 'retro',
     retro: true,
     scale: 1 / 3, // fallback for paintThemed calls without a world width
-    // Virtual 640x480 machine screen: the 4:3 world area is 8/3 x 2 world
-    // units, so 640 / (8/3) = 240 pixels per unit. Every texture that
-    // passes its world width to paintThemed shares this one pixel grid.
     pixelsPerUnit: 240,
     pixelCourts: true,
-    // VT323's glyphs fill ~22% less of the em square than bold monospace
-    // (cap ascent 0.59em vs 0.72em), so equal px sizes render visibly
-    // smaller; scale requests by 1.35 to compensate. The result is then
-    // snapped to a multiple of 16px: VT323 is designed on a 16-per-em
-    // pixel grid, so only those sizes rasterize with integer design
-    // pixels — anything in between draws alternating thick/thin strokes.
-    // The 16px floor keeps the smallest requests readable.
-    uiFont: (px) => `${Math.max(16, Math.round(px * 1.35 / 16) * 16)}px "VT323", monospace`,
-    cardFont: (px) => `${px}px "VT323", Arial, sans-serif`,
+    uiFont: vt323Font,
+    cardFont: vt323CardFont,
   },
+  // Medium res: same pixelated machine look on a 960x720 grid.
+  medium: {
+    name: 'medium',
+    retro: true,
+    scale: 1 / 2,
+    pixelsPerUnit: 360,
+    pixelCourts: true,
+    uiFont: vt323Font,
+    cardFont: vt323CardFont,
+  },
+  // High res: full-resolution textures, vector court panels.
   hires: {
     name: 'hires',
     retro: false,
@@ -70,7 +84,19 @@ const THEMES = {
   },
 };
 
-let active = THEMES.retro;
+// Resolution order for the low / medium / high cycle.
+export const THEME_ORDER = ['retro', 'medium', 'hires'];
+
+const THEME_STORAGE_KEY = 'jokerpoker.resolution';
+
+function loadStoredTheme() {
+  try {
+    const v = globalThis.localStorage?.getItem(THEME_STORAGE_KEY);
+    return THEMES[v] ? v : null;
+  } catch { return null; }
+}
+
+let active = THEMES[loadStoredTheme() ?? 'retro'];
 const listeners = new Set();
 
 export function getTheme() { return active; }
@@ -79,12 +105,15 @@ export function setTheme(name) {
   const next = THEMES[name];
   if (!next || next === active) return active;
   active = next;
+  try { globalThis.localStorage?.setItem(THEME_STORAGE_KEY, name); } catch { /* private mode */ }
   for (const cb of listeners) cb(active);
   return active;
 }
 
+// Cycle low -> medium -> high -> low (F2 / the resolution chip).
 export function toggleTheme() {
-  return setTheme(active.retro ? 'hires' : 'retro');
+  const i = THEME_ORDER.indexOf(active.name);
+  return setTheme(THEME_ORDER[(i + 1) % THEME_ORDER.length]);
 }
 
 export function onThemeChanged(cb) {

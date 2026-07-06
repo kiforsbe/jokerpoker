@@ -1,6 +1,6 @@
 {
   "name": "joker-poker",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Browser remake of the classic Finnish Jokeripokeri arcade video poker machine, built with Three.js and the Web Audio API",
   "type": "module",
   "private": true,

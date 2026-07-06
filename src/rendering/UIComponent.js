@@ -2,6 +2,7 @@ import RenderComponent from './RenderComponent.js';
 import { GameAudioComponent } from '../audio/AudioComponent.js';
 import GameLogger from '../utils/GameLogger.js';
 import { getTheme, PALETTE, paintThemed, onThemeChanged, fillTextCentered } from './theme.js';
+import { t, onLanguageChanged } from '../i18n.js';
 
 class UIComponent extends RenderComponent {
   constructor() {
@@ -216,15 +217,20 @@ class TextDisplayComponent extends UIComponent {
 }
 
 class StatusBoxComponent extends UIComponent {
-  constructor(label, width = 0.62, height = 0.18) {
+  // `labelKey` is an i18n key (e.g. 'credits'); the box redraws itself on
+  // language switches.
+  constructor(labelKey, width = 0.62, height = 0.18) {
     super();
-    this.label = label;
+    this.labelKey = labelKey;
     this.value = '0';
     this.boxWidth = width;
     this.boxHeight = height;
     this.isInteractable = false;
     this._offTheme = null;
+    this._offLang = null;
   }
+
+  get label() { return t(this.labelKey); }
 
   onRenderSystemReady() {
     if (!this._renderSystem) return;
@@ -233,6 +239,7 @@ class StatusBoxComponent extends UIComponent {
     const mesh = this.createSprite(texture, this.boxWidth, this.boxHeight);
     mesh.renderOrder = 5;
     this._offTheme = onThemeChanged(() => this._redraw());
+    this._offLang = onLanguageChanged(() => this._redraw());
   }
 
   // Gray box (on the top gray band) with the machine's double-line blue border.
@@ -281,6 +288,7 @@ class StatusBoxComponent extends UIComponent {
 
   onRemove() {
     if (this._offTheme) { this._offTheme(); this._offTheme = null; }
+    if (this._offLang) { this._offLang(); this._offLang = null; }
     super.onRemove();
   }
 }
@@ -301,30 +309,44 @@ class BetDisplayComponent extends UIComponent {
     this.normalColor = 0xffffff;
     this.hoverColor = 0xdddddd;
     this._offTheme = null;
+    this._offLang = null;
   }
 
   onRenderSystemReady() {
     if (!this._renderSystem) return;
-    const texture = this._renderSystem.createCanvasTexture(320, 96,
+    // 540x96 tracks the 1.0 x 0.18 world box's aspect ratio.
+    const texture = this._renderSystem.createCanvasTexture(540, 96,
       (ctx) => paintThemed(ctx, (c) => this._draw(c), this.boxWidth));
     const mesh = this.createSprite(texture, this.boxWidth, this.boxHeight);
     mesh.renderOrder = 5;
     this._offTheme = onThemeChanged(() => this._redraw());
+    this._offLang = onLanguageChanged(() => this._redraw());
   }
 
   _draw(ctx) {
     const w = ctx.canvas.width, h = ctx.canvas.height;
-    ctx.font = getTheme().uiFont(Math.round(h * 0.48));
-    // 'H' reference: "Bet" and the value have no descenders, so center
+    // The bet oval is pinned to the component's center (which sits at the
+    // screen's center), and the label ends just left of it. The box is
+    // wide enough for the longest label ("Insats") at the standard font;
+    // the loop below is only an emergency valve for unexpected overflows.
+    const label = t('bet');
+    const cx = w / 2, cy = h * 0.5;
+    const rx = w * 0.071, ry = h * 0.44, gap = w * 0.028;
+    let px = Math.round(h * 0.48);
+    ctx.font = getTheme().uiFont(px);
+    while (px > 8 && ctx.measureText(label).width > cx - rx - gap - w * 0.01) {
+      px--;
+      ctx.font = getTheme().uiFont(px);
+    }
+    // 'H' reference: the label and the value have no descenders, so center
     // their actual glyph band rather than the full font band.
     ctx.fillStyle = PALETTE.betLabelText;
-    ctx.textAlign = 'left';
-    fillTextCentered(ctx, 'Bet', w * 0.14, h * 0.5, 'H');
-    // Yellow oval with the bet value.
-    const cx = w * 0.62, cy = h * 0.5;
+    ctx.textAlign = 'right';
+    fillTextCentered(ctx, label, cx - rx - gap, cy, 'H');
+    // Yellow oval with the bet value, dead center.
     ctx.fillStyle = PALETTE.betOval;
     ctx.beginPath();
-    ctx.ellipse(cx, cy, w * 0.13, h * 0.44, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = PALETTE.betText;
     ctx.textAlign = 'center';
@@ -344,6 +366,7 @@ class BetDisplayComponent extends UIComponent {
 
   onRemove() {
     if (this._offTheme) { this._offTheme(); this._offTheme = null; }
+    if (this._offLang) { this._offLang(); this._offLang = null; }
     super.onRemove();
   }
 }

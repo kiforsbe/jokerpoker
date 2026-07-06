@@ -74,8 +74,9 @@ class GameScene extends Scene {
     bgObject.getComponent('Render').onFieldGuess =
       (side) => this.gameManager.chooseDouble(side);
 
-    // Create pay table
-    const payTableObject = createPayTable(0.55, 0.30);
+    // Create pay table; its right edge aligns with the hand row's right
+    // card edge (1.209), so x = 1.209 - width/2.
+    const payTableObject = createPayTable(0.459, 0.30);
     payTableObject.position.z = 0;
     this._addRendered(payTableObject);
 

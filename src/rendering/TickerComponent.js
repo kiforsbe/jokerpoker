@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
 import { PALETTE, LAYOUT, SCREEN_ASPECT, getTheme, onThemeChanged, textureFilter } from './theme.js';
+import { t, onLanguageChanged } from '../i18n.js';
 
 // Left-scrolling rules ticker on the bottom gray band, visible only while
 // in tuplaus (double) mode. One tile of text is drawn to a canvas; the
@@ -11,21 +12,24 @@ import { PALETTE, LAYOUT, SCREEN_ASPECT, getTheme, onThemeChanged, textureFilter
 // Within a pill every word is colored by what it means, palette-only:
 // key words and values pop (cyan LOW like the hold boxes, bet-oval yellow
 // HIGH and jackpot money, pay-highlight red for the losing/red 7, cyan
-// for keeping the win), while translations and glue words sit back in the
-// band's off-white.
+// for keeping the win), while glue words sit back in the band's off-white.
+// Built per display language.
 const WHITE = PALETTE.statusText;
 const GLUE = PALETTE.frame;
 const YELLOW = PALETTE.betOval;
 const CYAN = PALETTE.holdBg;
 const RED = PALETTE.payHighlight;
 
-const TICKER_SECTIONS = [
-  [{ t: 'TUPLAUS', c: YELLOW }, { t: ' - ', c: GLUE }, { t: 'DOUBLE OR NOTHING', c: WHITE }],
-  [{ t: 'LOW', c: CYAN }, { t: ' (PIENI · LÅG) = ', c: GLUE }, { t: '2-6', c: CYAN }],
-  [{ t: 'HIGH', c: YELLOW }, { t: ' (SUURI · HÖG) = ', c: GLUE }, { t: '8-ACE', c: YELLOW }],
-  [{ t: '7 LOSES', c: RED }, { t: ', ', c: GLUE }, { t: 'RED 7', c: RED }, { t: ' KEEPS THE WIN', c: CYAN }],
-  [{ t: 'DOUBLE UP TO ', c: GLUE }, { t: 'HALF THE JACKPOT', c: YELLOW }],
-];
+function tickerSections() {
+  const [title, ...rest] = t('ticker_title').split(' - ');
+  return [
+    [{ t: title, c: YELLOW }, { t: ' - ', c: GLUE }, { t: rest.join(' - '), c: WHITE }],
+    [{ t: t('low'), c: CYAN }, { t: ' = ', c: GLUE }, { t: '2-6', c: CYAN }],
+    [{ t: t('high'), c: YELLOW }, { t: ' = ', c: GLUE }, { t: '8-A', c: YELLOW }],
+    [{ t: t('seven_loses'), c: RED }, { t: ', ', c: GLUE }, { t: t('red_seven'), c: RED }, { t: t('keeps_win'), c: CYAN }],
+    [{ t: t('double_up_to'), c: GLUE }, { t: t('half_jackpot'), c: YELLOW }],
+  ];
+}
 
 const WORLD_WIDTH = SCREEN_ASPECT * 2; // full screen width
 const WORLD_HEIGHT = 0.12;             // fits inside the 0.17 bottom band
@@ -82,6 +86,7 @@ class TickerComponent extends RenderComponent {
     this.gm.addEventListener('stateChanged', this._onState);
 
     this._offTheme = onThemeChanged(() => this._drawTile());
+    this._offLang = onLanguageChanged(() => this._drawTile());
   }
 
   // Draw one tile: a train of dark pills (one rule each) plus a trailing
@@ -91,7 +96,8 @@ class TickerComponent extends RenderComponent {
     const ctx = canvas.getContext('2d');
     const font = getTheme().uiFont(28);
     ctx.font = font;
-    const widths = TICKER_SECTIONS.map(
+    const sections = tickerSections();
+    const widths = sections.map(
       segs => segs.reduce((acc, s) => acc + Math.ceil(ctx.measureText(s.t).width), 0));
     const total = widths.reduce((acc, w) => acc + w + PILL_PAD_X * 2 + PILL_GAP, 0);
     canvas.width = Math.max(1, total); // resizing resets ctx state
@@ -102,7 +108,7 @@ class TickerComponent extends RenderComponent {
 
     const pillH = CANVAS_HEIGHT - PILL_MARGIN_Y * 2;
     let x = 0;
-    TICKER_SECTIONS.forEach((segs, i) => {
+    sections.forEach((segs, i) => {
       const pillW = widths[i] + PILL_PAD_X * 2;
       ctx.fillStyle = PILL_FILL;
       // Manual rounded path (arcTo) — ctx.roundRect is missing on
@@ -144,6 +150,7 @@ class TickerComponent extends RenderComponent {
 
   onRemove() {
     if (this._offTheme) { this._offTheme(); this._offTheme = null; }
+    if (this._offLang) { this._offLang(); this._offLang = null; }
     if (this._onState) {
       this.gm.removeEventListener?.('stateChanged', this._onState);
       this._onState = null;
