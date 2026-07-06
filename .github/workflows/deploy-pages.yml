@@ -15,10 +15,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # GitHub's Pages service rejects deployments created from tag refs on
+  # this repo ("Deployment failed, try again later", while identical
+  # main-ref deployments succeed), so a tag push relays into a
+  # workflow_dispatch run of this same workflow on main.
+  relay:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-pages.yml --ref main --repo ${{ github.repository }}
+
   # Tests and the artifact upload live together so the deploy job holds only
   # the deploy step — "Re-run failed jobs" then never re-uploads the
   # github-pages artifact (duplicates make deploy-pages fail).
   build:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +49,7 @@ jobs:
           path: src
 
   deploy:
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     environment:
