@@ -5,6 +5,7 @@ import AudioSystem from './audio/AudioSystem.js';
 import InputSystem from './engine/InputSystem.js';
 import GameScene from './game/GameScene.js';
 import GameLogger from './utils/GameLogger.js';
+import { GAME_VERSION } from './version.js';
 
 class JokerPokerGame {
   constructor() {
@@ -152,6 +153,8 @@ class JokerPokerGame {
 
 // Start the game when modules are loaded
 try {
+  const versionTag = document.getElementById('version');
+  if (versionTag) versionTag.textContent = `v${GAME_VERSION}`;
   window.game = new JokerPokerGame();
 } catch (error) {
   const logger = new GameLogger();
