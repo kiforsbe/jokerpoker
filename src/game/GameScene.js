@@ -12,6 +12,7 @@ import { createScreenShake } from '../rendering/ScreenShakeComponent.js';
 import HandEvaluator from './HandEvaluator.js';
 import { CabinetPanel } from '../ui/CabinetPanel.js';
 import { createTicker } from '../rendering/TickerComponent.js';
+import { createGambleHints } from '../rendering/GambleHints.js';
 import { AudioDirector } from '../audio/AudioDirector.js';
 import { toggleTheme, SCREEN_ASPECT } from '../rendering/theme.js';
 
@@ -67,6 +68,12 @@ class GameScene extends Scene {
     this.add(gameManagerObject);
     this.gameManager = gameManagerObject.addComponent(new GameManagerComponent());
 
+    // In screen-only UI mode the field halves are the tuplaus guess
+    // buttons: taps that hit nothing more specific land on the background
+    // (chooseDouble ignores them outside the gamble state).
+    bgObject.getComponent('Render').onFieldGuess =
+      (side) => this.gameManager.chooseDouble(side);
+
     // Create pay table
     const payTableObject = createPayTable(0.55, 0.30);
     payTableObject.position.z = 0;
@@ -84,6 +91,9 @@ class GameScene extends Scene {
 
     // Rules ticker on the bottom band, shown only during tuplaus.
     this._addRendered(createTicker(this.gameManager));
+
+    // LOW/HIGH tap hints beside the double card (screen-only UI mode).
+    this._addRendered(createGambleHints(this.gameManager));
 
     // Create debug panel
     const debugPanel = createDebugPanel();

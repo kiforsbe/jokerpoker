@@ -20,6 +20,20 @@ class BackgroundRenderComponent extends RenderComponent {
     super();
     this.logger = new GameLogger();
     this._offTheme = null;
+    // Set by GameScene: (side) => void, called with 'small' | 'large' when
+    // the player taps a field half during tuplaus. Everything else on the
+    // table sits nearer the camera, so the background only receives clicks
+    // that hit nothing more specific.
+    this.onFieldGuess = null;
+  }
+
+  handleClick(raycaster) {
+    if (!this.onFieldGuess) return;
+    const screen = this.meshes[1]; // the 4:3 screen plane (index per onRenderSystemReady)
+    if (!screen) return;
+    const hits = raycaster.intersectObject(screen, false);
+    if (!hits.length) return;
+    this.onFieldGuess(hits[0].point.x < 0 ? 'small' : 'large');
   }
 
   onRenderSystemReady() {

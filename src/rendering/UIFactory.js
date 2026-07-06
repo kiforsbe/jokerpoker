@@ -44,6 +44,13 @@ export function createStatusBar(gameManager) {
 
   const credits = createStatusBox('Credits', -0.66, 0); // left of the bar center
   const wins    = createStatusBox('Wins',     0.66, 0); // right of the bar center
+  // Clicking/tapping the Wins box collects the win meter — the payout
+  // control in screen-only UI mode (collect() guards the game state).
+  const winsBox = wins.getComponent('UI');
+  winsBox.isInteractable = true;
+  winsBox.normalColor = 0xffffff;  // untinted: the texture carries the colors
+  winsBox.hoverColor = 0xdddddd;
+  winsBox.onClick = () => gameManager.collect();
   const bet = new GameObject('Status_Bet');
   const betDisplay = bet.addComponent(new BetDisplayComponent(0.62, 0.18));
   // Clicking/tapping the bet oval cycles the bet size (same as the BET

@@ -31,7 +31,7 @@ Any static file server works (VS Code Live Server, `python -m http.server`, …)
 
 ## Controls
 
-Click the cabinet buttons, or use the keyboard:
+Click the cabinet buttons, or use the keyboard. The chip in the top-right corner (or `F3`) cycles three UI modes: **cabinet** (buttons below the screen), **overlay** (the same buttons translucent over it), and **screen-only** (no buttons — the playfield does everything: tap the deck to deal/draw or start the double after a win, tap cards to hold, the bet oval to change the bet, the Wins box to collect, and the left/right field half to guess LOW/HIGH). The choice is remembered.
 
 | Key | Action |
 | --- | --- |
@@ -43,6 +43,7 @@ Click the cabinet buttons, or use the keyboard:
 | `S` / `←` | Guess small (1–6) |
 | `L` / `→` | Guess large (8–13) |
 | `F2` | Toggle retro/hi-res theme |
+| `F3` | Cycle UI mode: cabinet / overlay / screen-only |
 | `Alt+D` | Debug panel (`Alt+C` CRT, `Alt+O` outline, `Alt+R` composer, `Alt+W` render mode) |
 
 ## Running the tests

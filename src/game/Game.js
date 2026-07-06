@@ -64,8 +64,15 @@ class GameManagerComponent extends Component {
     this.gameObject.engine.addGameObject(deckObject);
     this.deck = deckObject.getComponent('Deck');
     this.deckRender = deckObject.getComponent('Render');
-    // Tapping the deck doubles as the PLAY button: deal, or draw after holds.
-    if (this.deckRender) this.deckRender.onClick = () => this.playDealOrDraw();
+    // Tapping the deck doubles as the PLAY button (deal, or draw after
+    // holds) — and after a win it starts tuplaus, since the double card
+    // comes off this very deck (screen-only UI mode's DOUBLE control).
+    if (this.deckRender) {
+      this.deckRender.onClick = () => {
+        if (this.state === 'won') this.startDouble();
+        else this.playDealOrDraw();
+      };
+    }
   }
 
   addEventListener(event, callback) {

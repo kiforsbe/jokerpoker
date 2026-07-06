@@ -1,5 +1,7 @@
 // Authentic RAY/PAF Jokeripokeri cabinet button panel as a DOM overlay below the CRT.
 // Color-coded, trilingual (Swedish / Finnish / English) buttons.
+import { getUiMode, cycleUiMode, onUiModeChanged } from './uiMode.js';
+
 const COLORS = {
   red:    { bg: '#b3231f', lit: '#ff4b44', text: '#ffffff' },
   blue:   { bg: '#1b4f9c', lit: '#3a82ff', text: '#ffffff' },
@@ -31,6 +33,7 @@ export class CabinetPanel {
     this.buttons = new Map();
     this._injectStyles();
     this._build();
+    this._buildModeSwitch();
     this._bindKeyboard();
     gameManager.addEventListener('stateChanged', () => this._refresh());
     gameManager.addEventListener('winChanged', () => this._refresh());
@@ -62,6 +65,24 @@ export class CabinetPanel {
         touch-action: manipulation; }
       #cabinet button.enabled { opacity: 1; }
       #cabinet button.enabled:hover { filter: brightness(1.15); }
+
+      /* overlay mode: same layout, floating translucently over the screen */
+      #cabinet.overlay { position: fixed; left: 0; right: 0; bottom: 0;
+        background: transparent; z-index: 10; }
+      #cabinet.overlay button { opacity: 0.15; }
+      #cabinet.overlay button.enabled { opacity: 0.4; }
+      #cabinet.overlay button.enabled:hover { opacity: 0.95; }
+
+      /* screen mode: no chrome at all */
+      #cabinet.hidden { display: none; }
+
+      /* mode switch chip, top-right corner */
+      #ui-mode { position: fixed; top: 8px; right: 8px; z-index: 30;
+        width: 36px; height: 30px; border: none; border-radius: 7px;
+        background: rgba(140, 150, 180, 0.18); color: #9aa2bd;
+        font-size: 15px; line-height: 1; cursor: pointer;
+        touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+      #ui-mode:hover { background: rgba(140, 150, 180, 0.4); color: #e8e8e4; }
     `;
     document.head.appendChild(s);
   }
@@ -90,6 +111,28 @@ export class CabinetPanel {
     document.body.appendChild(this.root);
   }
 
+  // Corner chip (and F3) cycling the three UI modes: cabinet panel below
+  // the screen, translucent overlay on it, or screen-only (all functions
+  // then live on the playfield itself).
+  _buildModeSwitch() {
+    const b = document.createElement('button');
+    b.id = 'ui-mode';
+    b.textContent = '▤';
+    b.addEventListener('click', () => cycleUiMode());
+    document.body.appendChild(b);
+
+    const apply = (mode) => {
+      this.root.classList.toggle('overlay', mode === 'overlay');
+      this.root.classList.toggle('hidden', mode === 'screen');
+      b.title = `UI mode: ${mode} (click or F3 to switch)`;
+      // The panel entering/leaving the flow changes the space left for the
+      // canvas — refit it (index.js routes resize to RenderSystem).
+      window.dispatchEvent(new Event('resize'));
+    };
+    onUiModeChanged(apply);
+    apply(getUiMode());
+  }
+
   _onClick(id) {
     const gm = this.gm;
     if (id.startsWith('hold')) return gm.holdCard(Number(id.slice(4)));
@@ -106,6 +149,7 @@ export class CabinetPanel {
   _bindKeyboard() {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
+      if (e.key === 'F3') { e.preventDefault(); return cycleUiMode(); }
       const k = e.key.toLowerCase();
       if (k >= '1' && k <= '5') return this.gm.holdCard(Number(k) - 1);
       if (k === 'enter' || k === ' ') { e.preventDefault(); return this.gm.playDealOrDraw(); }
