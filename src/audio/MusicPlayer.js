@@ -47,11 +47,11 @@ export class MusicPlayer {
     this._loop = loop;
     this._rate = rate;
     this._playing = true;
-    this._tick();
     this._timer = setInterval(() => this._tick(), this._tickMs);
     // In Node (tests) an interval would keep the process alive; browsers
     // return a number with no unref.
     if (this._timer.unref) this._timer.unref();
+    this._tick();
   }
 
   // Seamless tempo change: applies to notes scheduled from now on.
@@ -69,7 +69,7 @@ export class MusicPlayer {
     for (const ch of this._channels) {
       while (ch.index < ch.notes.length && ch.nextTime < horizon) {
         const note = ch.notes[ch.index];
-        const dur = note.dur / this._rate;
+        const dur = Math.max(note.dur / this._rate, 0.001);
         if (note.freq > 0) this._scheduleNote(note, ch.instrument, ch.nextTime, dur);
         ch.nextTime += dur;
         ch.index++;

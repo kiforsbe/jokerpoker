@@ -130,6 +130,24 @@ test('stop() silences already-scheduled notes and is idempotent', () => {
   for (const osc of oscillators) assert.equal(osc.stopped.length, 2);
 });
 
+test('a zero-duration note cannot hang the scheduler', () => {
+  const { ctx, oscillators } = makeFakeCtx();
+  const player = new MusicPlayer(ctx, { connect() {} }, { lookahead: 0.1 });
+  player.playSequence([{ freq: 440, dur: 0 }], { loop: true });
+  // The clamp (0.001s floor) schedules at most lookahead/0.001 = 100 notes
+  // per tick instead of spinning forever.
+  assert.ok(Number.isFinite(oscillators.length) && oscillators.length > 0);
+  player.stop();
+});
+
+test('a song that fits entirely in the first tick releases its timer', () => {
+  const { ctx } = makeFakeCtx();
+  const player = new MusicPlayer(ctx, { connect() {} }, { lookahead: 10 });
+  player.playSequence([{ freq: 440, dur: 0.1 }]);
+  assert.equal(player._timer, null);
+  player.stop();
+});
+
 test('suspended context defers scheduling instead of stacking notes', () => {
   const { ctx, oscillators } = makeFakeCtx();
   const player = new MusicPlayer(ctx, { connect() {} }, { lookahead: 10 });
