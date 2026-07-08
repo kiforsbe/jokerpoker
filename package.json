@@ -8,5 +8,9 @@
     "start": "npx http-server -p 5500 -c-1",
     "test": "node --test"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "three": "0.185.1"
+  }
 }
