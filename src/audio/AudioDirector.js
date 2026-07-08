@@ -97,7 +97,7 @@ export class AudioDirector {
         // a brief dip, then the loop continues at the faster streak tempo.
         this._sfx('doubleWin');
         this._duckMusic(0.7);
-        this.audio.music.setRate?.(this._tuplausRate());
+        this.audio.music?.setRate?.(this._tuplausRate());
       } else {
         this._doubleStreak = 0;
         this._tuplausActive = false;

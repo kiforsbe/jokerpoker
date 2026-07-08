@@ -142,3 +142,22 @@ test('cardDealt event plays cardDeal with the dealt count', () => {
   assert.ok(hit);
   assert.equal(hit.params.count, 3);
 });
+
+test('a double win with audio not ready does not throw', () => {
+  const played = [];
+  const audio = {
+    initialized: false,
+    music: undefined,
+    playEffect(name, params) { played.push({ name, params }); },
+  };
+  const listeners = new Map();
+  const gm = {
+    state: 'idle',
+    addEventListener(event, cb) { listeners.set(event, cb); },
+    emit(event, data) { listeners.get(event)?.(data); },
+  };
+  new AudioDirector(audio, gm);
+  gm.emit('doubleStarted', {});
+  gm.emit('doubleResult', { outcome: 'win' }); // must not throw
+  assert.ok(played.some(p => p.name === 'doubleWin'));
+});
