@@ -1,6 +1,6 @@
 import GameLogger from '../utils/GameLogger.js';
 import { MusicPlayer } from './MusicPlayer.js';
-import { SfxRegistry } from './sfx.js';
+import { SfxRegistry, SFX_PARAMS } from './sfx.js';
 
 class AudioSystem {
   constructor(engine) {
@@ -160,6 +160,9 @@ class AudioSystem {
   _setupEffects() {
     this.music = new MusicPlayer(this.audioContext, this.masterGain);
     this.sfx = new SfxRegistry(this.audioContext, this.masterGain);
+    // Build every effect's buffer up front so first plays never synthesize
+    // on the main thread mid-game.
+    Object.keys(SFX_PARAMS).forEach(n => this.sfx._buffer(n));
   }
 
   playEffect(name, params) {
@@ -170,6 +173,8 @@ class AudioSystem {
   emit(event, data) {
     // Back-compat shim: route legacy event names to effects.
     const map = { win: 'win', cardHeld: 'hold', lose: 'lose' };
+    // cardHeld fires for both toggle directions; only a hold confirms.
+    if (event === 'cardHeld' && !data?.held) return;
     if (map[event]) this.playEffect(map[event]);
   }
 }

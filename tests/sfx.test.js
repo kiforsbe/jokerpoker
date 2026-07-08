@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SfxRegistry, SFX_PARAMS } from '../src/audio/sfx.js';
+import { ZZFX } from '../src/audio/vendor/zzfx.js';
 
 function makeFakeCtx() {
   const sources = [];
@@ -29,6 +30,10 @@ function makeFakeCtx() {
 
 const EXPECTED_EFFECTS = ['buttonPress', 'cardDeal', 'cardFlip', 'hold',
   'shuffle', 'win', 'lose', 'doubleWin', 'countTick', 'burst'];
+
+test('sfx module forces full-scale ZzFX samples (master gain owns loudness)', () => {
+  assert.equal(ZZFX.volume, 1);
+});
 
 test('every effect in the inventory has params and builds a non-silent buffer', () => {
   const { ctx } = makeFakeCtx();

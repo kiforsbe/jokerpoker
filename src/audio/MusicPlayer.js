@@ -45,7 +45,8 @@ export class MusicPlayer {
       nextTime: startAt,
     }));
     this._loop = loop;
-    this._rate = rate;
+    this._rate = 1;
+    this.setRate(rate);
     this._playing = true;
     this._timer = setInterval(() => this._tick(), this._tickMs);
     // In Node (tests) an interval would keep the process alive; browsers

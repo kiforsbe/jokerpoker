@@ -112,6 +112,14 @@ test('setRate guards against non-positive or NaN rates', () => {
   player.stop();
 });
 
+test('playSequence rate option is guarded like setRate', () => {
+  const { ctx, oscillators } = makeFakeCtx();
+  const player = new MusicPlayer(ctx, { connect() {} }, { lookahead: 0.4 });
+  player.playSequence([{ freq: 440, dur: 0.2 }, { freq: 550, dur: 0.2 }], { loop: true, rate: 0 });
+  assert.ok(oscillators.length > 0, 'channel froze on rate 0');
+  player.stop();
+});
+
 test('multi-channel songs schedule every channel', () => {
   const { ctx, oscillators } = makeFakeCtx();
   const player = new MusicPlayer(ctx, { connect() {} }, { lookahead: 10 });
