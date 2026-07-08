@@ -76,8 +76,8 @@ src/
   game/               Game logic: state machine (Game), Deck, Card, HandEvaluator, payouts, Tuplaus
   rendering/          RenderSystem, theme (retro/hires), card/deck/UI render components,
                       animations, particle effects, and CRT/outline shaders
-  audio/              AudioSystem, AudioDirector (event-driven SFX/music), RetroSound synth,
-                      MusicPlayer
+  audio/              AudioSystem, AudioDirector (event-driven SFX/music), ZzFX-based
+                      sfx registry, MusicPlayer, vendored ZzFX synth
   ui/                 CabinetPanel — trilingual DOM button panel
   utils/              DebugPanel, GameLogger
 tests/                Node.js test-runner unit tests
