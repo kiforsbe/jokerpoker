@@ -1,6 +1,6 @@
 import GameLogger from '../utils/GameLogger.js';
-import { RetroSound } from './RetroSound.js';
 import { MusicPlayer } from './MusicPlayer.js';
+import { SfxRegistry } from './sfx.js';
 
 class AudioSystem {
   constructor(engine) {
@@ -8,7 +8,6 @@ class AudioSystem {
     this.initialized = false;
     this.audioContext = null;
     this.masterGain = null;
-    this.pendingSounds = [];
     this.components = new Set();
     this.volume = 0.3;
     this.initializationPromise = null;
@@ -82,12 +81,6 @@ class AudioSystem {
       this.components.forEach(component => {
         component.onAudioInit(this.audioContext, this.masterGain);
       });
-
-      // Play pending sounds
-      while (this.pendingSounds.length > 0) {
-        const { type, params } = this.pendingSounds.shift();
-        this.playSound(type, params);
-      }
 
       this._setupEffects();
 
@@ -166,19 +159,12 @@ class AudioSystem {
 
   _setupEffects() {
     this.music = new MusicPlayer(this.audioContext, this.masterGain);
-    this._effectFactories = this._effectFactories || new Map();
-  }
-
-  registerEffect(name, factory) {
-    // factory(ctx, gain) -> RetroSound
-    this._effectFactories = this._effectFactories || new Map();
-    this._effectFactories.set(name, factory);
+    this.sfx = new SfxRegistry(this.audioContext, this.masterGain);
   }
 
   playEffect(name, params) {
-    if (!this.initialized || !this._effectFactories) return;
-    const factory = this._effectFactories.get(name);
-    if (factory) factory(this.audioContext, this.masterGain, params).play();
+    if (!this.initialized || !this.sfx) return;
+    this.sfx.play(name, params);
   }
 
   emit(event, data) {

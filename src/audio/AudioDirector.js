@@ -1,5 +1,3 @@
-import { RetroSound } from './RetroSound.js';
-
 // Equal-temperament note frequency, semitones relative to A4 (440 Hz).
 const N = (semis) => 440 * Math.pow(2, semis / 12);
 
@@ -10,7 +8,6 @@ export class AudioDirector {
     this._doubleStreak = 0;   // successful doubles this gamble run; drives tune tempo
     this._tuplausActive = false; // tune keeps playing across the whole gamble run
     this._graceUntil = 0;     // lets the collect count-up outlive the idle transition
-    this._registerEffects();
     this._subscribe();
     // When audio becomes available (after the user's first interaction), start the
     // attract tune if we're still in attract mode.
@@ -19,29 +16,6 @@ export class AudioDirector {
         if (this.gm.state === 'attract') this._playAttract();
       }).catch(() => {});
     }
-  }
-
-  _registerEffects() {
-    const a = this.audio;
-    a.registerEffect('lose', (ctx, g) =>
-      new RetroSound(ctx, g, 160, 0.32).setWaveform('square').addFrequencySlide(160, 70).setVolume(0.5));
-    // Riffle shuffle: a train of short noise bursts (card edges flicking).
-    // 14 ticks at 30ms each spans ~0.42s, matching the deck's split-and-merge
-    // animation (0.9s of component time, halved by the engine's double update).
-    a.registerEffect('shuffle', (ctx, g) =>
-      new RetroSound(ctx, g, 2600, 0.03).setWaveform('noise')
-        .addFrequencySlide(2600, 1300).setVolume(0.4).setRepeats(14));
-    // One rising swish per dealt card (count > 1 plays a quick run, kept
-    // for callers that batch, though deal and draw both emit per card now).
-    a.registerEffect('cardDeal', (ctx, g, params) =>
-      new RetroSound(ctx, g, 260, 0.07).setWaveform('triangle')
-        .addFrequencySlide(260, 540).setVolume(0.5)
-        .setRepeats(params?.count ?? 1));
-    // Successful double: a short triumphant rising sweep, played over a
-    // brief dip in the tuplaus tune rather than replacing it.
-    a.registerEffect('doubleWin', (ctx, g) =>
-      new RetroSound(ctx, g, 523, 0.12).setWaveform('square')
-        .addFrequencySlide(523, 1046).setVolume(0.5).setRepeats(3));
   }
 
   // Dip the tuplaus tune under a sound effect; it resumes right after.
@@ -124,7 +98,7 @@ export class AudioDirector {
       this._duckMusic(0.5);
     });
     gm.addEventListener('cardDealt', ({ count }) => {
-      this._sfx('cardDeal', { count });
+      this._sfx('cardDeal', { count, spacing: 0.11 });
       this._duckMusic(0.6);
     });
     gm.addEventListener('noWin', () => this._sfx('lose'));

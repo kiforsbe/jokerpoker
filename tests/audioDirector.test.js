@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { AudioDirector } from '../src/audio/AudioDirector.js';
 
 function makeFakes() {
-  const effects = new Map();
   const played = [];
   const music = {
     sequences: [],
@@ -14,7 +13,6 @@ function makeFakes() {
   const audio = {
     initialized: true,
     music,
-    registerEffect(name, factory) { effects.set(name, factory); },
     playEffect(name, params) { played.push({ name, params }); },
   };
   const listeners = new Map();
@@ -23,7 +21,7 @@ function makeFakes() {
     addEventListener(event, cb) { listeners.set(event, cb); },
     emit(event, data) { listeners.get(event)?.(data); },
   };
-  return { audio, gm, effects, played, music };
+  return { audio, gm, played, music };
 }
 
 test('doubleStarted plays the looping tuplaus tune', () => {
@@ -133,13 +131,6 @@ test('double result still plays a win or lose sound', () => {
   assert.ok(music.sequences.length > 0); // win melody
 });
 
-test('registers shuffle and cardDeal effects', () => {
-  const { audio, gm, effects } = makeFakes();
-  new AudioDirector(audio, gm);
-  assert.ok(effects.has('shuffle'));
-  assert.ok(effects.has('cardDeal'));
-});
-
 test('shuffle event plays the shuffle effect', () => {
   const { audio, gm, played } = makeFakes();
   new AudioDirector(audio, gm);
@@ -154,25 +145,4 @@ test('cardDealt event plays cardDeal with the dealt count', () => {
   const hit = played.find(p => p.name === 'cardDeal');
   assert.ok(hit);
   assert.equal(hit.params.count, 3);
-});
-
-test('cardDeal factory repeats once per dealt card', () => {
-  const { audio, gm, effects } = makeFakes();
-  new AudioDirector(audio, gm);
-  const sound = effects.get('cardDeal')({}, {}, { count: 3 });
-  assert.equal(sound.repeats, 3);
-  const single = effects.get('cardDeal')({}, {}, undefined);
-  assert.equal(single.repeats, 1);
-});
-
-test('shuffle factory riffles with multiple rapid ticks', () => {
-  const { audio, gm, effects } = makeFakes();
-  new AudioDirector(audio, gm);
-  const sound = effects.get('shuffle')({}, {});
-  assert.equal(sound.waveform, 'noise');
-  assert.ok(sound.repeats > 1);
-  // Total tick-train length should roughly match the ~0.45s wall-clock
-  // shuffle animation (0.9s at the engine's double update rate).
-  const total = sound.repeats * sound.duration;
-  assert.ok(total > 0.3 && total < 0.6, `total was ${total}`);
 });
