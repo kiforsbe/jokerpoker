@@ -6,7 +6,9 @@
   "private": true,
   "scripts": {
     "start": "npx http-server -p 5500 -c-1",
-    "test": "node --test"
+    "test": "node --test",
+    "build:local": "node scripts/build.mjs local",
+    "build:vendored": "node scripts/build.mjs vendored"
   },
   "license": "UNLICENSED",
   "devDependencies": {
