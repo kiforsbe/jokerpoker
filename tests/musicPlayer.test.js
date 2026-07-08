@@ -101,6 +101,17 @@ test('setRate scales durations of subsequently scheduled notes', () => {
   player.stop();
 });
 
+test('setRate guards against non-positive or NaN rates', () => {
+  const { ctx, oscillators } = makeFakeCtx();
+  const player = new MusicPlayer(ctx, { connect() {} }, { lookahead: 0.4 });
+  player.playSequence([{ freq: 440, dur: 0.2 }, { freq: 550, dur: 0.2 }], { loop: true });
+  player.setRate(0);
+  ctx.currentTime = 1.0;
+  player._tick();
+  assert.ok(oscillators.length > 2, 'channel froze after setRate(0)');
+  player.stop();
+});
+
 test('multi-channel songs schedule every channel', () => {
   const { ctx, oscillators } = makeFakeCtx();
   const player = new MusicPlayer(ctx, { connect() {} }, { lookahead: 10 });

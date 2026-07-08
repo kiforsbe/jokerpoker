@@ -7,7 +7,9 @@ function makeFakes() {
   const music = {
     sequences: [],
     stops: 0,
+    rates: [],
     playSequence(notes, opts) { this.sequences.push({ notes, opts }); },
+    setRate(r) { this.rates.push(r); },
     stop() { this.stops++; },
   };
   const audio = {
@@ -31,38 +33,34 @@ test('doubleStarted plays the looping tuplaus tune', () => {
   assert.equal(music.sequences.length, 1);
   const { notes, opts } = music.sequences[0];
   assert.equal(opts.loop, true);
-  // 30-note phrase x3 plus the 9-note ending line.
+  assert.equal(opts.rate, 1);
   assert.equal(notes.length, 99);
-  // Opens on f1 (F4) and the ending line lands on c1 (C4).
   assert.ok(Math.abs(notes[0].freq - 349.23) < 0.5);
   assert.ok(Math.abs(notes[98].freq - 261.63) < 0.5);
-  // Bright: every note is a square wave.
   assert.ok(notes.every(n => n.type === 'square'));
-  // Slow base tempo: ~0.56s per note.
   assert.ok(Math.abs(notes[0].dur - 0.56) < 0.001);
 });
 
-test('tuplaus tune speeds up with each successful double and resets on a new hand', () => {
+test('each successful double cranks the tempo without restarting the tune', () => {
   const { audio, gm, music } = makeFakes();
   new AudioDirector(audio, gm);
 
   gm.emit('doubleStarted', {});
-  const base = music.sequences[0].notes[0].dur;
+  const sequencesAfterStart = music.sequences.length;
+  assert.equal(music.sequences.at(-1).opts.rate, 1);
 
   gm.emit('doubleResult', { outcome: 'win' });
-  gm.emit('doubleStarted', {});
-  const afterOne = music.sequences.at(-1).notes[0].dur;
-  assert.ok(afterOne < base, `expected ${afterOne} < ${base}`);
+  // No restart: the playing tune just gets faster.
+  assert.equal(music.sequences.length, sequencesAfterStart);
+  assert.ok(Math.abs(music.rates.at(-1) - 1.25) < 0.001);
 
   gm.emit('doubleResult', { outcome: 'win' });
-  gm.emit('doubleStarted', {});
-  const afterTwo = music.sequences.at(-1).notes[0].dur;
-  assert.ok(afterTwo < afterOne);
+  assert.ok(Math.abs(music.rates.at(-1) - 1.5625) < 0.001);
 
-  // A fresh hand win resets the streak back to the slow base tempo.
+  // A fresh hand win resets the streak: the next run starts at rate 1.
   gm.emit('win', { result: { rank: 2 } });
   gm.emit('doubleStarted', {});
-  assert.ok(Math.abs(music.sequences.at(-1).notes[0].dur - base) < 0.001);
+  assert.equal(music.sequences.at(-1).opts.rate, 1);
 });
 
 test('losing the double resets the tuplaus tempo', () => {
@@ -72,8 +70,7 @@ test('losing the double resets the tuplaus tempo', () => {
   gm.emit('doubleResult', { outcome: 'win' });
   gm.emit('doubleResult', { outcome: 'lose' });
   gm.emit('doubleStarted', {});
-  const dur = music.sequences.at(-1).notes[0].dur;
-  assert.ok(Math.abs(dur - 0.56) < 0.001);
+  assert.equal(music.sequences.at(-1).opts.rate, 1);
 });
 
 test('tuplaus tune keeps playing through the gamble states', () => {
@@ -97,15 +94,14 @@ test('losing the double stops the tuplaus tune', () => {
   assert.ok(music.stops > stopsAfterStart);
 });
 
-test('a successful double restarts the tune faster instead of a win melody', () => {
+test('a successful double speeds the tune up instead of playing a win melody', () => {
   const { audio, gm, music, played } = makeFakes();
   new AudioDirector(audio, gm);
   gm.emit('doubleStarted', {});
-  const before = music.sequences.at(-1).notes[0].dur;
+  const sequences = music.sequences.length;
   gm.emit('doubleResult', { outcome: 'win' });
-  const after = music.sequences.at(-1);
-  assert.equal(after.opts.loop, true); // still the looping tuplaus tune
-  assert.ok(after.notes[0].dur < before); // at the faster streak tempo
+  assert.equal(music.sequences.length, sequences); // no restart, no win melody
+  assert.ok(music.rates.length > 0);               // just faster
   assert.ok(played.some(p => p.name === 'doubleWin')); // triumph sfx over the dip
 });
 
@@ -128,7 +124,7 @@ test('double result still plays a win or lose sound', () => {
   gm.emit('doubleResult', { outcome: 'lose' });
   assert.ok(played.some(p => p.name === 'lose'));
   gm.emit('doubleResult', { outcome: 'win' });
-  assert.ok(music.sequences.length > 0); // win melody
+  assert.ok(music.rates.length > 0); // tune speeds up seamlessly
 });
 
 test('shuffle event plays the shuffle effect', () => {

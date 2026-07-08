@@ -55,7 +55,7 @@ export class MusicPlayer {
   }
 
   // Seamless tempo change: applies to notes scheduled from now on.
-  setRate(rate) { this._rate = rate; }
+  setRate(rate) { this._rate = Math.max(rate, 0.001) || 0.001; }
 
   _tick() {
     if (!this._playing) return;
