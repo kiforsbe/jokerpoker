@@ -50,7 +50,10 @@ if (mode === 'local') {
   });
   const vendorThree = path.join(out, 'vendor', 'three');
   mkdirSync(path.join(vendorThree, 'examples', 'jsm'), { recursive: true });
-  copyFileSync(path.join(threeDir, 'build', 'three.module.js'), path.join(vendorThree, 'three.module.js'));
+  // three.module.js re-exports from its sibling three.core.js (three r18x split).
+  for (const f of ['three.module.js', 'three.core.js']) {
+    copyFileSync(path.join(threeDir, 'build', f), path.join(vendorThree, f));
+  }
   for (const sub of ['postprocessing', 'shaders']) {
     cpSync(path.join(threeDir, 'examples', 'jsm', sub), path.join(vendorThree, 'examples', 'jsm', sub), { recursive: true });
   }
