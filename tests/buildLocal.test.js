@@ -23,6 +23,7 @@ test('local mode is module-free: no import map, no shim, classic game.js script'
   assert.ok(!out.includes('es-module-shims'));
   assert.ok(!out.includes('type="module"'));
   assert.ok(out.includes('<script src="game.js"></script>'));
+  assert.ok(!out.includes('Load Three.js and dependencies'));
 });
 
 test('vendored mode rewrites the import map to local paths and keeps modules', () => {
@@ -37,4 +38,12 @@ test('vendored mode rewrites the import map to local paths and keeps modules', (
 test('a missing marker fails the build loudly', () => {
   assert.throws(() => transformHtml('<html><head></head></html>', 'local'), /marker not found/);
   assert.throws(() => transformHtml(html, 'nope'), /unknown mode/);
+});
+
+test('import map three version matches the package.json devDependency exactly', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const version = pkg.devDependencies.three;
+  assert.match(version, /^\d+\.\d+\.\d+$/, 'three devDependency must be exact-pinned');
+  assert.ok(html.includes(`three@${version}/build/three.module.js`), 'import map three core version drifted from package.json');
+  assert.ok(html.includes(`three@${version}/examples/jsm/`), 'import map three addons version drifted from package.json');
 });

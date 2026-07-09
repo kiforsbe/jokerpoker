@@ -23,6 +23,7 @@ const FONT_FACE = [
   "        @font-face { font-family: 'VT323'; src: url('fonts/VT323-Regular.ttf') format('truetype'); font-display: swap; }",
 ].join('\n');
 
+const THREE_COMMENT = '<!-- Load Three.js and dependencies -->';
 const SHIM_TAG = '<script async src="vendor/es-module-shims/es-module-shims.js"></script>';
 const MODULE_SCRIPT_TAG = '<script type="module" src="index.js"></script>';
 const IMPORTMAP_OPEN = '<script type="importmap">';
@@ -61,6 +62,7 @@ export function transformHtml(html, mode) {
 
   if (mode === 'local') {
     // A classic-script bundle has no modules: drop the shim and the map.
+    html = mustReplace(html, THREE_COMMENT, '', 'three loader comment');
     html = mustReplace(html, SHIM_TAG, '', 'es-module-shims tag');
     html = removeImportMap(html);
     html = mustReplace(html, MODULE_SCRIPT_TAG, '<script src="game.js"></script>', 'module script tag');

@@ -20,6 +20,9 @@ const threeDir = path.join(root, 'node_modules', 'three');
 if (!existsSync(threeDir)) fail('build: node_modules/three missing - run `npm install` first');
 const fontDir = path.join(root, 'assets', 'fonts');
 if (!existsSync(path.join(fontDir, 'VT323-Regular.ttf'))) fail('build: assets/fonts/VT323-Regular.ttf missing');
+if (mode === 'local' && !existsSync(path.join(root, 'node_modules', 'esbuild'))) {
+  fail('build: node_modules/esbuild missing - run `npm install` first');
+}
 
 const out = path.join(root, 'dist', mode);
 rmSync(out, { recursive: true, force: true });
@@ -44,9 +47,10 @@ if (mode === 'local') {
   });
 } else {
   // The src tree already contains the vendored es-module-shims.
+  const rootIndexHtml = path.join(root, 'src', 'index.html');
   cpSync(path.join(root, 'src'), out, {
     recursive: true,
-    filter: (p) => path.basename(p) !== 'index.html',
+    filter: (p) => path.resolve(p) !== rootIndexHtml,
   });
   const vendorThree = path.join(out, 'vendor', 'three');
   mkdirSync(path.join(vendorThree, 'examples', 'jsm'), { recursive: true });
@@ -54,6 +58,7 @@ if (mode === 'local') {
   for (const f of ['three.module.js', 'three.core.js']) {
     copyFileSync(path.join(threeDir, 'build', f), path.join(vendorThree, f));
   }
+  copyFileSync(path.join(threeDir, 'LICENSE'), path.join(vendorThree, 'LICENSE'));
   for (const sub of ['postprocessing', 'shaders']) {
     cpSync(path.join(threeDir, 'examples', 'jsm', sub), path.join(vendorThree, 'examples', 'jsm', sub), { recursive: true });
   }
