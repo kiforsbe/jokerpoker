@@ -1,6 +1,6 @@
 # Joker Poker
 
-A fan-made **tribute** to the classic Finnish **Jokeripokeri** arcade video poker machine (as found in RAY/PAF cabinets), rebuilt for the browser with [Three.js](https://threejs.org/) and the Web Audio API. No build step, no framework — just ES modules served statically.
+A fan-made **tribute** to the classic Finnish **Jokeripokeri** arcade video poker machine (as found in RAY/PAF cabinets), rebuilt for the browser with [Three.js](https://threejs.org/) and the Web Audio API. No framework, no required build step — just ES modules served statically (optional build scripts produce fully offline variants; see “Offline builds”).
 
 > **Disclaimer:** This is a non-commercial hobby homage, not an official product. It is not affiliated with, endorsed by, or connected to RAY, PAF, Veikkaus, or any maker of the original machines. **No original audio, graphics, code, or other assets from the original game are used** — every visual is drawn procedurally and every sound is synthesized from scratch; the look and feel are recreated purely from memory and reference photographs. No real-money play: the credits are make-believe.
 
@@ -10,7 +10,7 @@ A fan-made **tribute** to the classic Finnish **Jokeripokeri** arcade video poke
 - **Three resolutions** — pixelated 640×480 and 960×720 machine modes (procedural pixel-art court cards, VT323 CRT font) plus a photo-matched hi-res mode; cycle with **F2** or the corner chip
 - **Three display languages** — all screen text (status bar, pay table, hold boxes, win overlay, tuplaus ticker) switches between English, Swedish, and Finnish via a corner chip; the cabinet buttons stay trilingual like the original printed panel
 - **CRT post-processing** — scanline shader, outline/edge-highlight passes
-- **Machine-faithful audio** — procedurally synthesized square/noise waveforms via the Web Audio API: button ticks, shuffle and card-deal sounds, win count-up, tuplaus tunes, and attract-mode music
+- **Machine-faithful audio** — ZzFX-synthesized sound effects and a multi-voice chip-tune music engine on the Web Audio API: button ticks, shuffle and card-deal noise, win count-up, tuplaus tunes, and attract-mode music — no audio files, everything generated at runtime
 - **Authentic trilingual cabinet panel** — Swedish / Finnish / English color-coded buttons rendered as a DOM overlay below the CRT
 - **Attract mode** with card animations and music
 - **Responsive layout** — the 4:3 game screen letterboxes to any window while the button panel adapts, so it plays on phones (portrait or landscape) as well as desktop; touch input supported
@@ -20,7 +20,7 @@ A fan-made **tribute** to the classic Finnish **Jokeripokeri** arcade video poke
 
 ## Getting started
 
-Requires [Node.js](https://nodejs.org/) 18+ (for `npx` and the test runner). Three.js is loaded from a CDN via an import map, so an internet connection is needed at runtime.
+Requires [Node.js](https://nodejs.org/) 20+ (for `npx` and the test runner).
 
 ```sh
 npm start
@@ -28,7 +28,27 @@ npm start
 
 Then open <http://localhost:5500/src/index.html> in your browser.
 
-Any static file server works (VS Code Live Server, `python -m http.server`, …) — a server is required because the game uses ES modules, which don't load over `file://`. A VS Code launch configuration ([.vscode/launch.json](.vscode/launch.json)) is included that opens Chrome against port 5500.
+Any static file server works (VS Code Live Server, `python -m http.server`, …) — a server is required because the game uses ES modules, which don't load over `file://` (see “Offline builds” for a from-disk variant). A VS Code launch configuration ([.vscode/launch.json](.vscode/launch.json)) is included that opens Chrome against port 5500.
+
+### Online dependencies
+
+Served this way, the game loads two things from the internet at runtime:
+
+- **three.js 0.185.1** (core + `examples/jsm` addons for the CRT post-processing) from unpkg.com, via the import map in [src/index.html](src/index.html)
+- **VT323 font** from Google Fonts
+
+Everything else is local: the game code, the ZzFX synth, and es-module-shims (vendored and pinned in [src/vendor/es-module-shims/](src/vendor/es-module-shims/)). The offline builds below eliminate both remaining online dependencies.
+
+### Offline builds
+
+Two optional build modes remove the online dependencies (both need a one-time `npm install` first — `esbuild` and `three` are devDependencies used only by these scripts; the game itself has zero runtime npm dependencies):
+
+```sh
+npm run build:local     # -> dist/local/    open index.html straight from disk - no server, no internet
+npm run build:vendored  # -> dist/vendored/ ES modules with three.js vendored - serve with any static server, no internet
+```
+
+`build:local` bundles the game into a single classic script, which is the only way browsers allow running from `file://`. `build:vendored` keeps the normal module structure and vendors three.js and the font next to it.
 
 ## Controls
 
@@ -53,7 +73,7 @@ Click the cabinet buttons, or use the keyboard. The ⤢ chip in the top-right co
 npm test
 ```
 
-Unit tests cover hand evaluation, payouts, tuplaus rules, theming, and the audio director/music player, using the built-in Node.js test runner.
+Unit tests cover hand evaluation, payouts, tuplaus rules, theming, the audio stack (director, music scheduler, sfx registry, vendored ZzFX), and the offline-build HTML transforms, using the built-in Node.js test runner.
 
 ## Deploying to GitHub Pages
 
@@ -80,7 +100,10 @@ src/
                       sfx registry, MusicPlayer, vendored ZzFX synth
   ui/                 CabinetPanel — trilingual DOM button panel
   utils/              DebugPanel, GameLogger
+  vendor/             pinned third-party runtime files (es-module-shims)
 tests/                Node.js test-runner unit tests
+scripts/              build.mjs + htmlTransform.mjs - optional offline builds (dist/local, dist/vendored)
+assets/fonts/         VT323 font (SIL OFL) committed for the offline builds
 ```
 
 ### Architecture notes
