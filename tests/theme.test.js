@@ -12,6 +12,9 @@ test('default theme is retro', () => {
   // Virtual 640x480 machine screen: the 4:3 world area is 8/3 x 2 units,
   // so 640 / (8/3) = 240 pixels per world unit.
   assert.equal(t.pixelsPerUnit, 240);
+  assert.equal(t.virtualWidth, 640);
+  assert.equal(t.virtualHeight, 480);
+  assert.equal(t.crtEnabled, true);
 });
 
 test('setTheme switches to hires and notifies listeners', () => {
@@ -50,9 +53,19 @@ test('medium is a pixelated theme on a denser 960x720 grid', () => {
   assert.equal(t.retro, true);
   assert.equal(t.pixelCourts, true);
   assert.equal(t.pixelsPerUnit, 360); // 960 / (8/3)
+  assert.equal(t.virtualWidth, 960);
+  assert.equal(t.virtualHeight, 720);
+  assert.equal(t.crtEnabled, true);
   assert.equal(textureFilter(), 1003); // still hard pixels
   assert.match(t.uiFont(32), /VT323/);
   setTheme('retro');
+});
+
+test('hires defaults to CRT off while pixel modes default to CRT on', () => {
+  setTheme('hires');
+  assert.equal(getTheme().crtEnabled, false);
+  setTheme('retro');
+  assert.equal(getTheme().crtEnabled, true);
 });
 
 test('unsubscribe stops notifications', () => {

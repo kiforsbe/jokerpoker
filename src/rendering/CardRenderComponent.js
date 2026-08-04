@@ -243,7 +243,7 @@ class CardRenderComponent extends RenderComponent {
       }
       if (this.holdLabel) {
         this.updateTexture(this.holdLabel, (ctx) => {
-          paintThemed(ctx, (c) => this._drawHoldLabel(c), this.CARD_WIDTH);
+          paintThemed(ctx, (c) => this._drawHoldLabel(c), HOLD_WORLD_WIDTH);
         });
       }
     });

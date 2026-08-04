@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { CRTShader } from './shaders/CRTShader.js';
 import { OutlineShader } from './shaders/OutlineShader.js';
-import { textureFilter, SCREEN_ASPECT } from './theme.js';
+import { getTheme, onThemeChanged, textureFilter, SCREEN_ASPECT } from './theme.js';
 import GameLogger from '../utils/GameLogger.js';
 
 const DebugRenderMode = {
@@ -33,7 +33,14 @@ class RenderSystem {
     this.initialized = false;
     this.useComposer = true;
     this.useOutlineEffect = true;
-    this.useCRTEffect = true;
+    this.useCRTEffect = getTheme().crtEnabled;
+    this._offTheme = onThemeChanged((theme) => {
+      this.setCRTEffectEnabled(theme.crtEnabled);
+      // Pixel modes render the whole scene into a fixed virtual screen, not
+      // merely individual texture canvases. This is what makes MD visibly
+      // denser than LO at every window size.
+      if (this.renderer) this.resize();
+    });
 
     // Debug options
     this.debugRenderMode = DebugRenderMode.NONE;
@@ -51,7 +58,7 @@ class RenderSystem {
     // Initial shader parameters
     this.shaderParams = {
       crt: {
-        enabled: true,
+        enabled: this.useCRTEffect,
         scanlineCount: 800.0,
         scanlineIntensity: 0.15,
         noise: 0.02,
@@ -152,9 +159,11 @@ class RenderSystem {
       });
 
       this.renderer.setClearColor(0x000022, 1);
-      const { width, height } = this._fitScreenSize();
-      this.renderer.setSize(width, height);
+      const displaySize = this._fitScreenSize();
+      const { width, height } = this._renderSize(displaySize);
       this.renderer.setPixelRatio(this._pixelRatio());
+      this.renderer.setSize(width, height, false);
+      this._setCanvasDisplaySize(displaySize);
       this.renderer.autoClear = true;
 
       // Add an ID to the canvas for easier identification
@@ -315,7 +324,17 @@ class RenderSystem {
     if ('flicker' in params) uniforms.flicker.value = params.flicker;
     if ('curvature' in params) uniforms.curvature.value.copy(params.curvature);
     if ('scanlineCount' in params) uniforms.scanlineCount.value = params.scanlineCount;
-    if ('enabled' in params) this.crtPass.enabled = params.enabled;
+    if ('enabled' in params) this.setCRTEffectEnabled(params.enabled);
+  }
+
+  // CRT is a display-mode default: enabled for the two pixel-machine modes
+  // and disabled for the clean high-resolution mode. Keep the stored state
+  // in sync even before the post-processing pass has been created.
+  setCRTEffectEnabled(enabled) {
+    const next = !!enabled;
+    this.useCRTEffect = next;
+    this.shaderParams.crt.enabled = next;
+    if (this.crtPass) this.crtPass.enabled = next;
   }
 
   setOutlineParameters(params = {}) {
@@ -469,10 +488,7 @@ class RenderSystem {
     const newState = forceState === undefined ? !this.useCRTEffect : !!forceState;
     if (newState === this.useCRTEffect) return;
 
-    this.useCRTEffect = newState;
-    if (this.crtPass) {
-      this.crtPass.enabled = newState;
-    }
+    this.setCRTEffectEnabled(newState);
 
     this.logger.log('DEBUG', 'RenderSystem: CRT effect toggled', {
       enabled: this.useCRTEffect,
@@ -485,9 +501,9 @@ class RenderSystem {
     }
 
     // Ensure last pass renders to screen
-    if (this.crtEnabled) {
+    if (this.crtPass?.enabled) {
       this.crtPass.renderToScreen = true;
-    } else if (this.outlineEnabled) {
+    } else if (this.outlinePass?.enabled) {
       this.outlinePass.renderToScreen = true;
     } else {
       this.renderPass.renderToScreen = true;
@@ -550,18 +566,45 @@ class RenderSystem {
     return { width: 4 * k, height: 3 * k };
   }
 
+  // LO and MD are true virtual machine screens. Rendering the complete
+  // scene at these dimensions prevents the browser's viewport size from
+  // masking their texture-density difference. HI remains display-native.
+  _renderSize(displaySize) {
+    const theme = getTheme();
+    return theme.virtualWidth
+      ? { width: theme.virtualWidth, height: theme.virtualHeight }
+      : displaySize;
+  }
+
+  _setCanvasDisplaySize({ width, height }) {
+    if (!this.renderer?.domElement) return;
+    const canvas = this.renderer.domElement;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    // CSS performs the final fullscreen upscale. Preserve virtual-screen
+    // pixels there as well; otherwise browser interpolation can make LO and
+    // MD appear nearly identical.
+    canvas.style.imageRendering = getTheme().virtualWidth ? 'pixelated' : 'auto';
+  }
+
   // Cap the backing-store density: phones report ratios of 3+, and the CRT
   // shader over a full-window buffer at that density is wasted GPU work.
   _pixelRatio() {
+    // A device pixel ratio would silently raise a virtual 640x480/960x720
+    // mode above its advertised resolution, blurring the distinction.
+    if (getTheme().virtualWidth) return 1;
     return Math.min(window.devicePixelRatio || 1, 2);
   }
 
   resize() {
-    const { width, height } = this._fitScreenSize();
+    const displaySize = this._fitScreenSize();
+    const { width, height } = this._renderSize(displaySize);
+    const pixelRatio = this._pixelRatio();
 
     if (this.renderer) {
-      this.renderer.setSize(width, height);
-      this.renderer.setPixelRatio(this._pixelRatio());
+      this.renderer.setPixelRatio(pixelRatio);
+      this.renderer.setSize(width, height, false);
+      this._setCanvasDisplaySize(displaySize);
     }
 
     if (this.activeScene?.resize) {
@@ -569,21 +612,26 @@ class RenderSystem {
     }
 
     if (this.composer) {
+      this.composer.setPixelRatio(pixelRatio);
       this.composer.setSize(width, height);
-      this.composer.setPixelRatio(window.devicePixelRatio);
     }
 
     if (this.outlinePass) {
-      this.outlinePass.uniforms.resolution.value.set(width, height);
+      this.outlinePass.uniforms.resolution.value.set(width * pixelRatio, height * pixelRatio);
     }
 
     if (this.crtPass) {
-      this.crtPass.uniforms.resolution.value.set(width, height);
+      this.crtPass.uniforms.resolution.value.set(width * pixelRatio, height * pixelRatio);
     }
   }
 
   shutdown() {
     this.logger.log('DEBUG', 'RenderSystem: Shutting down');
+
+    if (this._offTheme) {
+      this._offTheme();
+      this._offTheme = null;
+    }
 
     // Remove event listeners
     if (this.renderer?.domElement) {

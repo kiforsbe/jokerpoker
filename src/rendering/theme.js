@@ -57,19 +57,26 @@ const THEMES = {
   retro: {
     name: 'retro',
     retro: true,
+    virtualWidth: 640,
+    virtualHeight: 480,
     scale: 1 / 3, // fallback for paintThemed calls without a world width
     pixelsPerUnit: 240,
     pixelCourts: true,
+    crtEnabled: true,
     uiFont: vt323Font,
     cardFont: vt323CardFont,
   },
-  // Medium res: same pixelated machine look on a 960x720 grid.
+  // Medium res: the 1.5x machine grid (960x720).  Its pixels are smaller
+  // than low-res, but remain hard-edged through nearest-neighbour sampling.
   medium: {
     name: 'medium',
     retro: true,
+    virtualWidth: 960,
+    virtualHeight: 720,
     scale: 1 / 2,
     pixelsPerUnit: 360,
     pixelCourts: true,
+    crtEnabled: true,
     uiFont: vt323Font,
     cardFont: vt323CardFont,
   },
@@ -77,8 +84,11 @@ const THEMES = {
   hires: {
     name: 'hires',
     retro: false,
+    virtualWidth: null,
+    virtualHeight: null,
     scale: 1,
     pixelCourts: false,
+    crtEnabled: false,
     uiFont: (px) => `bold ${px}px monospace`,
     cardFont: (px) => `bold ${px}px Arial, sans-serif`,
   },

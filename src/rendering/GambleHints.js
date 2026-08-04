@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
-import { PALETTE, getTheme, onThemeChanged, fillTextCentered } from './theme.js';
+import { PALETTE, getTheme, onThemeChanged, paintThemed, fillTextCentered } from './theme.js';
 import { getUiMode, onUiModeChanged } from '../ui/uiMode.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
@@ -64,12 +64,14 @@ class GambleHintsComponent extends RenderComponent {
   }
 
   _draw(ctx, hint) {
-    const w = ctx.canvas.width, h = ctx.canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = hint.color;
-    ctx.font = getTheme().uiFont(Math.round(h * 0.5));
-    ctx.textAlign = 'center';
-    fillTextCentered(ctx, hint.text(), w / 2, h / 2, 'H');
+    paintThemed(ctx, (canvasCtx) => {
+      const w = canvasCtx.canvas.width, h = canvasCtx.canvas.height;
+      canvasCtx.clearRect(0, 0, w, h);
+      canvasCtx.fillStyle = hint.color;
+      canvasCtx.font = getTheme().uiFont(Math.round(h * 0.5));
+      canvasCtx.textAlign = 'center';
+      fillTextCentered(canvasCtx, hint.text(), w / 2, h / 2, 'H');
+    }, HINT_WORLD_WIDTH);
   }
 
   _refresh() {
