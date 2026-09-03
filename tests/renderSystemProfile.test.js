@@ -216,3 +216,33 @@ test('canvas textures register mutable raster handles and components release the
     globalThis.document = originalDocument;
   }
 });
+
+test('direct texture update reapplies early-2000s linear sampling after an eighties texture', () => {
+  const originalDocument = globalThis.document;
+  const context = { canvas: null, clearRect() {} };
+  const canvas = { width: 0, height: 0, getContext: () => context };
+  context.canvas = canvas;
+  globalThis.document = {
+    createElement: name => {
+      assert.equal(name, 'canvas');
+      return canvas;
+    },
+  };
+  try {
+    const { system } = makeProfileSystem();
+    system.applyDisplayProfile(DISPLAY_PROFILES.eighties);
+    const texture = system.createCanvasTexture(40, 20, () => {});
+    assert.equal(texture.minFilter, THREE.NearestFilter);
+    assert.equal(texture.magFilter, THREE.NearestFilter);
+
+    system.applyDisplayProfile(DISPLAY_PROFILES.early2000s);
+    const component = new RenderComponent();
+    component._renderSystem = system;
+    component.updateTexture({ material: { map: texture } }, () => {});
+
+    assert.equal(texture.minFilter, THREE.LinearFilter);
+    assert.equal(texture.magFilter, THREE.LinearFilter);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
