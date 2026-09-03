@@ -52,6 +52,16 @@ test('redraw clears before drawing, applies sampling, and marks texture dirty', 
   assert.deepEqual(texture.image.calls[0], ['clearRect', 0, 0, 120, 60]);
 });
 
+test('redraw uses a replacement draw callback on the mutable handle', () => {
+  const texture = fakeTexture();
+  const calls = [];
+  const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties);
+  const handle = rasterizer.register({ canvas: texture.image, texture, worldWidth: 1, draw: () => calls.push('initial') });
+  handle.draw = () => calls.push('replacement');
+  rasterizer.redraw(handle);
+  assert.deepEqual(calls, ['initial', 'replacement']);
+});
+
 test('applyDisplayProfile resizes and redraws all registered textures', () => {
   const first = fakeTexture();
   const second = fakeTexture(fakeCanvas(20, 40));

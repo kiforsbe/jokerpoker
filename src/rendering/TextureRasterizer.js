@@ -36,7 +36,7 @@ export class TextureRasterizer {
 
   register(descriptor) {
     const registration = asRegistration(descriptor);
-    const handle = Object.freeze(registration);
+    const handle = registration;
     this.registrations.add(handle);
     handle.texture.userData ??= {};
     handle.texture.userData.rasterHandle = handle;
