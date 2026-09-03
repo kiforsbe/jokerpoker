@@ -595,7 +595,13 @@ class RenderSystem {
     }
   }
 
-  createCanvasTexture(width, height, drawCallback, { worldWidth, label = 'CanvasTexture' } = {}) {
+  createCanvasTexture(width, height, drawCallback, options = {}) {
+    const { worldWidth, label } = options;
+    if (this.textureRasterizer
+      && (!Number.isFinite(worldWidth) || worldWidth <= 0
+        || typeof label !== 'string' || label.length === 0)) {
+      throw new TypeError('Registered canvas textures require worldWidth and label metadata');
+    }
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) {
@@ -607,7 +613,7 @@ class RenderSystem {
     canvas.height = height;
 
     const texture = new THREE.CanvasTexture(canvas);
-    if (this.textureRasterizer && Number.isFinite(worldWidth) && worldWidth > 0) {
+    if (this.textureRasterizer) {
       this.textureRasterizer.register({
         label,
         canvas,

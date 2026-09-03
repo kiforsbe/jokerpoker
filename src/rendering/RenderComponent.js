@@ -83,15 +83,26 @@ class RenderComponent extends Component {
     return mesh;
   }
 
-  createTextSprite(text, color = '#ffffff', size = 32, font = 'monospace') {
+  createTextSprite(
+    text,
+    color = '#ffffff',
+    size = 32,
+    font = 'monospace',
+    { worldWidth: textureWorldWidth = 1, label: textureLabel = 'TextSprite' } = {},
+  ) {
     const texture = this._renderSystem.createCanvasTexture(256, 64, (context) => {
-      context.fillStyle = color;
-      context.font = `${size}px ${font}`;
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText(text, 128, 32);
-    });
+      this._drawTextSprite(context, text, color, size, font);
+    }, { worldWidth: textureWorldWidth, label: textureLabel });
     return this.createSprite(texture, 1, 0.25);
+  }
+
+  _drawTextSprite(context, text, color, size, font = 'monospace') {
+    const { width, height } = context.canvas;
+    context.fillStyle = color;
+    context.font = `${size * (height / 64)}px ${font}`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(text, Math.round(width / 2), Math.round(height / 2));
   }
 
   createRect(width, height, color) {

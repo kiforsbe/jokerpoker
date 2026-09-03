@@ -134,7 +134,13 @@ class ButtonComponent extends UIComponent {
     buttonMesh.material.depthWrite = false;
 
     // Create button text with even higher render order
-    const textMesh = this.createTextSprite(this.text, '#ffffff', 32);
+    const textMesh = this.createTextSprite(
+      this.text,
+      '#ffffff',
+      32,
+      'monospace',
+      { worldWidth: this.width * 0.8, label: 'ButtonText' },
+    );
     textMesh.position.z = 0.01;
     textMesh.renderOrder = 4;
     // Ensure text is always visible
@@ -188,7 +194,13 @@ class TextDisplayComponent extends UIComponent {
     }
     
     // Create the initial text sprite mesh with proper render settings
-    const textMesh = this.createTextSprite(this.text, this.color, this.size);
+    const textMesh = this.createTextSprite(
+      this.text,
+      this.color,
+      this.size,
+      'monospace',
+      { worldWidth: 1, label: 'TextDisplay' },
+    );
     textMesh.renderOrder = 5; // Ensure text is rendered on top
     textMesh.material.depthTest = false; // Ensure text is always visible
     textMesh.material.depthWrite = false;
@@ -199,11 +211,7 @@ class TextDisplayComponent extends UIComponent {
     // Ensure mesh exists and render system is ready before updating texture
     if (this.meshes[0] && this._renderSystem) {
       this.updateTexture(this.meshes[0], (context) => {
-        context.fillStyle = this.color;
-        context.font = `${this.size}px monospace`;
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText(this.text, 128, 32); // Assuming 256x64 canvas from createTextSprite
+        this._drawTextSprite(context, this.text, this.color, this.size);
       });
     } else if (!this.meshes[0]) {
       // Optionally queue the update or log a warning
