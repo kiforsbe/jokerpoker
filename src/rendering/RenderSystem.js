@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { CRTShader } from './shaders/CRTShader.js';
 import { OutlineShader } from './shaders/OutlineShader.js';
-import { getTheme, onThemeChanged, textureFilter, SCREEN_ASPECT } from './theme.js';
+import { SCREEN_ASPECT, validateDisplayProfile } from './displayProfiles.js';
 import GameLogger from '../utils/GameLogger.js';
 
 const DebugRenderMode = {
@@ -14,9 +14,12 @@ const DebugRenderMode = {
 };
 
 class RenderSystem {
-  constructor(engine) {
+  constructor(engine, { getDisplayProfile = () => null, textureRasterizer = null } = {}) {
     this.engine = engine;
     this.logger = new GameLogger();
+    this.getDisplayProfile = getDisplayProfile;
+    this.textureRasterizer = textureRasterizer;
+    this.activeDisplayProfile = this.getDisplayProfile();
     
     // Three.js core components
     this.renderer = null;
@@ -33,14 +36,7 @@ class RenderSystem {
     this.initialized = false;
     this.useComposer = true;
     this.useOutlineEffect = true;
-    this.useCRTEffect = getTheme().crtEnabled;
-    this._offTheme = onThemeChanged((theme) => {
-      this.setCRTEffectEnabled(theme.crtEnabled);
-      // Pixel modes render the whole scene into a fixed virtual screen, not
-      // merely individual texture canvases. This is what makes MD visibly
-      // denser than LO at every window size.
-      if (this.renderer) this.resize();
-    });
+    this.useCRTEffect = this.activeDisplayProfile?.postProcessing.crt.enabled ?? true;
 
     // Debug options
     this.debugRenderMode = DebugRenderMode.NONE;
@@ -60,7 +56,9 @@ class RenderSystem {
       crt: {
         enabled: this.useCRTEffect,
         scanlineCount: 800.0,
+        scanlineDensity: 0,
         scanlineIntensity: 0.15,
+        rgbShiftPixels: 0,
         noise: 0.02,
         flicker: 0.01,
         vignetteIntensity: 0.3,
@@ -99,6 +97,9 @@ class RenderSystem {
         if (this.crtPass) this.composer.addPass(this.crtPass);
       }
 
+      const size = this.activeDisplayProfile?.framebuffer;
+      if (size && scene.resize) scene.resize(size.width, size.height);
+
       this.logger.log('DEBUG', 'RenderSystem: Active scene set', {
         sceneName: scene.name,
         hasCamera: !!scene.camera
@@ -119,8 +120,11 @@ class RenderSystem {
     }
   }
 
-  _handleContextRestored(event) {
-    console.warn("RenderSystem: WebGL context restored. Manual game restart needed.");
+  async _handleContextRestored() {
+    const profile = this.activeDisplayProfile ?? this.getDisplayProfile();
+    await this.setupPostprocessing();
+    if (profile) this.applyDisplayProfile(profile);
+    if (this.engine) this.engine.isRunning = true;
   }
 
   async init() {
@@ -159,11 +163,14 @@ class RenderSystem {
       });
 
       this.renderer.setClearColor(0x000022, 1);
+      const profile = this.getDisplayProfile();
+      validateDisplayProfile(profile);
+      this.activeDisplayProfile = profile;
       const displaySize = this._fitScreenSize();
-      const { width, height } = this._renderSize(displaySize);
-      this.renderer.setPixelRatio(this._pixelRatio());
+      const { width, height } = this._renderSize();
+      this.renderer.setPixelRatio(1);
       this.renderer.setSize(width, height, false);
-      this._setCanvasDisplaySize(displaySize);
+      this._setCanvasDisplaySize(displaySize, profile.sampling.output);
       this.renderer.autoClear = true;
 
       // Add an ID to the canvas for easier identification
@@ -181,13 +188,14 @@ class RenderSystem {
       this.depthTexture.type = THREE.UnsignedShortType;
 
       await this.setupPostprocessing();
+      this.applyDisplayProfile(profile);
 
       this.initialized = true;
 
       this.logger.log('DEBUG', 'RenderSystem: Successfully initialized', {
         renderer: {
           antialias: false,
-          pixelRatio: window.devicePixelRatio,
+          pixelRatio: 1,
           size: {
             width: window.innerWidth,
             height: window.innerHeight
@@ -231,16 +239,17 @@ class RenderSystem {
         this.crtPass = null;
       }
 
-      const size = this.renderer.getSize(new THREE.Vector2());
-      const pixelRatio = this.renderer.getPixelRatio();
+      const size = this._renderSize();
+      const pixelRatio = 1;
+      const sceneFilter = this._filterFor(this.activeDisplayProfile.sampling.scene);
 
       // Create render targets with matching format
       const renderTarget1 = new THREE.WebGLRenderTarget(
         size.width * pixelRatio,
         size.height * pixelRatio,
         {
-          minFilter: THREE.LinearFilter,
-          magFilter: THREE.LinearFilter,
+          minFilter: sceneFilter,
+          magFilter: sceneFilter,
           format: THREE.RGBAFormat,
           //encoding: THREE.sRGBEncoding,
           depthBuffer: true,
@@ -251,12 +260,11 @@ class RenderSystem {
         }
       );
       
-      const renderTarget2 = renderTarget1.clone();
-
       // Create composer with shared render targets
-      this.composer = new EffectComposer(this.renderer);
-      this.composer.renderTarget1 = renderTarget1;
-      this.composer.renderTarget2 = renderTarget2;
+      this.composer = new EffectComposer(this.renderer, renderTarget1);
+      this.composer.setPixelRatio(1);
+      this.composer.setSize(size.width, size.height);
+      this.useComposer = true;
       
       // Add main render pass first
       this.renderPass = new RenderPass(this.activeScene, this.activeScene?.camera);
@@ -266,7 +274,7 @@ class RenderSystem {
 
       // Set up outline pass
       this.outlinePass = new ShaderPass(OutlineShader);
-      this.outlinePass.uniforms.resolution.value.set(size.width * pixelRatio, size.height * pixelRatio);
+      this.outlinePass.uniforms.resolution.value.set(size.width, size.height);
       this.outlinePass.uniforms.cameraNear.value = this.activeScene?.camera?.near || 0.1;
       this.outlinePass.uniforms.cameraFar.value = this.activeScene?.camera?.far || 100;
       this.outlinePass.uniforms.tDepth.value = this.depthTexture;
@@ -278,7 +286,7 @@ class RenderSystem {
 
       // Set up CRT pass last
       this.crtPass = new ShaderPass(CRTShader);
-      this.crtPass.uniforms.resolution.value.set(size.width * pixelRatio, size.height * pixelRatio);
+      this.crtPass.uniforms.resolution.value.set(size.width, size.height);
       this.crtPass.uniforms.time.value = 0;
       this.crtPass.uniforms.scanlineCount.value = this.shaderParams.crt.scanlineCount;
       this.crtPass.uniforms.scanlineIntensity.value = this.shaderParams.crt.scanlineIntensity;
@@ -307,8 +315,85 @@ class RenderSystem {
     } catch (error) {
       this.logger.log('ERROR', 'RenderSystem: Post-processing setup failed', { error: error.message });
       console.error("RenderSystem: Post-processing setup failed", error);
-      this.useComposer = false;
+      if (this.activeDisplayProfile) this.forceDirectRendering(this.activeDisplayProfile);
+      else this.useComposer = false;
     }
+  }
+
+  _filterFor(sampling) {
+    return sampling === 'nearest' ? THREE.NearestFilter : THREE.LinearFilter;
+  }
+
+  _applyCRTPreset(preset, width, height) {
+    const scanlineCount = height * preset.scanlineDensity;
+    Object.assign(this.shaderParams.crt, {
+      enabled: !!preset.enabled,
+      scanlineCount,
+      scanlineDensity: preset.scanlineDensity,
+      scanlineIntensity: preset.scanlineIntensity,
+      rgbShiftPixels: preset.rgbShiftPixels,
+      noise: preset.noise,
+      flicker: preset.flicker,
+      vignetteIntensity: preset.vignetteIntensity,
+    });
+    this.shaderParams.crt.curvature.set(preset.curvature.x, preset.curvature.y);
+    this.useCRTEffect = !!preset.enabled;
+
+    if (!this.crtPass) return;
+    const uniforms = this.crtPass.uniforms;
+    uniforms.resolution?.value.set(width, height);
+    if (uniforms.scanlineCount) uniforms.scanlineCount.value = scanlineCount;
+    if (uniforms.scanlineDensity) uniforms.scanlineDensity.value = preset.scanlineDensity;
+    if (uniforms.scanlineIntensity) uniforms.scanlineIntensity.value = preset.scanlineIntensity;
+    if (uniforms.rgbShiftPixels) uniforms.rgbShiftPixels.value = preset.rgbShiftPixels;
+    if (uniforms.noise) uniforms.noise.value = preset.noise;
+    if (uniforms.flicker) uniforms.flicker.value = preset.flicker;
+    if (uniforms.vignetteIntensity) uniforms.vignetteIntensity.value = preset.vignetteIntensity;
+    if (uniforms.curvature?.value.set) {
+      uniforms.curvature.value.set(preset.curvature.x, preset.curvature.y);
+    }
+    this.crtPass.enabled = !!preset.enabled;
+  }
+
+  applyDisplayProfile(profile) {
+    validateDisplayProfile(profile);
+    this.activeDisplayProfile = profile;
+    const { width, height } = profile.framebuffer;
+
+    this.renderer?.setPixelRatio(1);
+    this.renderer?.setSize(width, height, false);
+    this._setCanvasDisplaySize(this._fitScreenSize(), profile.sampling.output);
+
+    this.composer?.setPixelRatio(1);
+    this.composer?.setSize(width, height);
+    const sceneFilter = this._filterFor(profile.sampling.scene);
+    const targets = new Set([
+      this.composer?.renderTarget1,
+      this.composer?.renderTarget2,
+      this.composer?.readBuffer,
+      this.composer?.writeBuffer,
+    ]);
+    for (const target of targets) {
+      if (!target?.texture) continue;
+      target.texture.minFilter = sceneFilter;
+      target.texture.magFilter = sceneFilter;
+      target.texture.needsUpdate = true;
+    }
+
+    this.outlinePass?.uniforms.resolution.value.set(width, height);
+    this._applyCRTPreset(profile.postProcessing.crt, width, height);
+    this.activeScene?.resize?.(width, height);
+  }
+
+  forceDirectRendering(profile) {
+    validateDisplayProfile(profile);
+    this.useComposer = false;
+    this.activeDisplayProfile = profile;
+    const { width, height } = profile.framebuffer;
+    this.renderer?.setPixelRatio(1);
+    this.renderer?.setSize(width, height, false);
+    this._setCanvasDisplaySize(this._fitScreenSize(), profile.sampling.output);
+    this.activeScene?.resize?.(width, height);
   }
 
   // Add methods to control shader parameters
@@ -510,7 +595,7 @@ class RenderSystem {
     }
   }
 
-  createCanvasTexture(width, height, drawCallback) {
+  createCanvasTexture(width, height, drawCallback, { worldWidth, label = 'CanvasTexture' } = {}) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) {
@@ -520,6 +605,20 @@ class RenderSystem {
 
     canvas.width = width;
     canvas.height = height;
+
+    const texture = new THREE.CanvasTexture(canvas);
+    if (this.textureRasterizer && Number.isFinite(worldWidth) && worldWidth > 0) {
+      this.textureRasterizer.register({
+        label,
+        canvas,
+        texture,
+        nativeWidth: width,
+        nativeHeight: height,
+        worldWidth,
+        draw: drawCallback,
+      });
+      return texture;
+    }
 
     try {
       drawCallback(context, canvas);
@@ -533,10 +632,9 @@ class RenderSystem {
       context.fillText('Error', width / 2, height / 2);
     }
 
-    const texture = new THREE.CanvasTexture(canvas);
-    // Nearest in retro (hard pixel blocks), linear in hires. Redraws
-    // re-apply this in RenderComponent.updateTexture on theme toggles.
-    texture.minFilter = texture.magFilter = textureFilter();
+    const sampling = this.activeDisplayProfile?.sampling.textures ?? 'linear';
+    texture.minFilter = texture.magFilter = this._filterFor(sampling);
+    texture.needsUpdate = true;
     return texture;
   }
 
@@ -566,72 +664,30 @@ class RenderSystem {
     return { width: 4 * k, height: 3 * k };
   }
 
-  // LO and MD are true virtual machine screens. Rendering the complete
-  // scene at these dimensions prevents the browser's viewport size from
-  // masking their texture-density difference. HI remains display-native.
-  _renderSize(displaySize) {
-    const theme = getTheme();
-    return theme.virtualWidth
-      ? { width: theme.virtualWidth, height: theme.virtualHeight }
-      : displaySize;
+  _renderSize() {
+    const profile = this.activeDisplayProfile ?? this.getDisplayProfile();
+    validateDisplayProfile(profile);
+    return { ...profile.framebuffer };
   }
 
-  _setCanvasDisplaySize({ width, height }) {
+  _setCanvasDisplaySize({ width, height }, outputSampling = this.activeDisplayProfile?.sampling.output ?? 'auto') {
     if (!this.renderer?.domElement) return;
     const canvas = this.renderer.domElement;
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
-    // CSS performs the final fullscreen upscale. Preserve virtual-screen
-    // pixels there as well; otherwise browser interpolation can make LO and
-    // MD appear nearly identical.
-    canvas.style.imageRendering = getTheme().virtualWidth ? 'pixelated' : 'auto';
-  }
-
-  // Cap the backing-store density: phones report ratios of 3+, and the CRT
-  // shader over a full-window buffer at that density is wasted GPU work.
-  _pixelRatio() {
-    // A device pixel ratio would silently raise a virtual 640x480/960x720
-    // mode above its advertised resolution, blurring the distinction.
-    if (getTheme().virtualWidth) return 1;
-    return Math.min(window.devicePixelRatio || 1, 2);
+    canvas.style.imageRendering = outputSampling;
   }
 
   resize() {
-    const displaySize = this._fitScreenSize();
-    const { width, height } = this._renderSize(displaySize);
-    const pixelRatio = this._pixelRatio();
-
-    if (this.renderer) {
-      this.renderer.setPixelRatio(pixelRatio);
-      this.renderer.setSize(width, height, false);
-      this._setCanvasDisplaySize(displaySize);
-    }
-
-    if (this.activeScene?.resize) {
-      this.activeScene.resize(width, height);
-    }
-
-    if (this.composer) {
-      this.composer.setPixelRatio(pixelRatio);
-      this.composer.setSize(width, height);
-    }
-
-    if (this.outlinePass) {
-      this.outlinePass.uniforms.resolution.value.set(width * pixelRatio, height * pixelRatio);
-    }
-
-    if (this.crtPass) {
-      this.crtPass.uniforms.resolution.value.set(width * pixelRatio, height * pixelRatio);
-    }
+    if (!this.renderer || !this.activeDisplayProfile) return;
+    this._setCanvasDisplaySize(
+      this._fitScreenSize(),
+      this.activeDisplayProfile.sampling.output,
+    );
   }
 
   shutdown() {
     this.logger.log('DEBUG', 'RenderSystem: Shutting down');
-
-    if (this._offTheme) {
-      this._offTheme();
-      this._offTheme = null;
-    }
 
     // Remove event listeners
     if (this.renderer?.domElement) {

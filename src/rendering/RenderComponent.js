@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import Component from '../engine/Component.js';
-import { textureFilter } from './theme.js';
 
 class RenderComponent extends Component {
   constructor() {
@@ -39,6 +38,7 @@ class RenderComponent extends Component {
 
   onRemove() {
     // Clean up Three.js resources
+    const releasedTextures = new Set();
     this.meshes.forEach(mesh => {
       if (mesh.geometry) {
         mesh.geometry.dispose();
@@ -47,11 +47,19 @@ class RenderComponent extends Component {
         // Handle material cleanup
         if (Array.isArray(mesh.material)) {
           mesh.material.forEach(material => {
-            if (material.map) material.map.dispose();
+            if (material.map && !releasedTextures.has(material.map)) {
+              this._unregisterTexture(material.map);
+              material.map.dispose();
+              releasedTextures.add(material.map);
+            }
             material.dispose();
           });
         } else {
-          if (mesh.material.map) mesh.material.map.dispose();
+          if (mesh.material.map && !releasedTextures.has(mesh.material.map)) {
+            this._unregisterTexture(mesh.material.map);
+            mesh.material.map.dispose();
+            releasedTextures.add(mesh.material.map);
+          }
           mesh.material.dispose();
         }
       }
@@ -104,14 +112,25 @@ class RenderComponent extends Component {
   updateTexture(mesh, drawCallback) {
     if (!mesh.material.map) return;
 
-    const canvas = mesh.material.map.image;
+    const texture = mesh.material.map;
+    const handle = texture.userData?.rasterHandle;
+    const rasterizer = this._renderSystem?.textureRasterizer;
+    if (handle && rasterizer) {
+      handle.draw = drawCallback;
+      rasterizer.redraw(handle);
+      return;
+    }
+
+    const canvas = texture.image;
     const context = canvas.getContext('2d');
     context.clearRect(0, 0, canvas.width, canvas.height);
     drawCallback(context, canvas);
-    // Keep the sampling filter in step with the active theme (nearest in
-    // retro, linear in hires) — redraws are how theme toggles propagate.
-    mesh.material.map.minFilter = mesh.material.map.magFilter = textureFilter();
-    mesh.material.map.needsUpdate = true;
+    texture.needsUpdate = true;
+  }
+
+  _unregisterTexture(texture) {
+    const handle = texture.userData?.rasterHandle;
+    if (handle) this._renderSystem?.textureRasterizer?.unregister(handle);
   }
 
   raycast(raycaster) {

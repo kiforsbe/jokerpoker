@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GameObject } from './GameObject.js';
+import { SCREEN_ASPECT } from '../rendering/displayProfiles.js';
 
 class Scene extends THREE.Scene {
   constructor(name = 'Scene') {
@@ -103,9 +104,9 @@ class Scene extends THREE.Scene {
 
   resize(width, height) {
     if (this.camera && this.camera instanceof THREE.OrthographicCamera) {
-      const aspect = width / height;
-      this.camera.left = -aspect;
-      this.camera.right = aspect;
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+      this.camera.left = -SCREEN_ASPECT;
+      this.camera.right = SCREEN_ASPECT;
       this.camera.top = 1;
       this.camera.bottom = -1;
       this.camera.updateProjectionMatrix();

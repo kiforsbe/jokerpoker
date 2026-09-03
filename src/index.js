@@ -6,6 +6,8 @@ import InputSystem from './engine/InputSystem.js';
 import GameScene from './game/GameScene.js';
 import GameLogger from './utils/GameLogger.js';
 import { GAME_VERSION } from './version.js';
+import { DisplayProfileController } from './rendering/DisplayProfileController.js';
+import { TextureRasterizer } from './rendering/TextureRasterizer.js';
 
 class JokerPokerGame {
   constructor() {
@@ -22,6 +24,8 @@ class JokerPokerGame {
     this.audioSystem = null;
     this.inputSystem = null;
     this.renderSystem = null;
+    this.displayProfileController = null;
+    this.textureRasterizer = null;
     this.gameScene = null;
 
     // Initialize game engine and systems
@@ -43,8 +47,32 @@ class JokerPokerGame {
     this.engine = new GameEngine();
     this.logger.log('DEBUG', 'JokerPokerGame: Engine created');
 
-    // Initialize render system
-    this.renderSystem = new RenderSystem(this.engine);
+    // Display presentation collaborators are wired before renderer startup so
+    // the first frame uses the persisted fixed framebuffer consistently.
+    this.displayProfileController = new DisplayProfileController({
+      onRollbackFailure: ({ profile, originalError, rollbackError }) => {
+        this.logger.log('ERROR', 'Display profile rollback failed', {
+          originalError: originalError.message,
+          rollbackError: rollbackError.message,
+        });
+        this.renderSystem.forceDirectRendering(profile);
+      },
+    });
+    this.textureRasterizer = new TextureRasterizer(
+      this.displayProfileController.getDisplayProfile(),
+      {
+        onDrawError: (error, handle) => this.logger.log('ERROR', 'Texture draw failed', {
+          label: handle.label,
+          error: error.message,
+        }),
+      },
+    );
+    this.renderSystem = new RenderSystem(this.engine, {
+      getDisplayProfile: () => this.displayProfileController.getDisplayProfile(),
+      textureRasterizer: this.textureRasterizer,
+    });
+    this.displayProfileController.configureAppliers([this.renderSystem, this.textureRasterizer]);
+    this.engine.addSystem('displayProfile', this.displayProfileController);
     this.engine.addSystem('render', this.renderSystem);
 
     // Create and add audio system
