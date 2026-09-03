@@ -29,6 +29,7 @@ playwright-report/
 .claude/
 .superpowers/
 docs/superpowers/
+.worktrees/
 
 # IDEs and editors
 .vscode/*
