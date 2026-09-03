@@ -40,7 +40,8 @@ class GameScene extends Scene {
     this.camera.updateProjectionMatrix();
     this.add(this.camera);
 
-    // Set up post-processing shaders
+    // Renderer profile owns post-processing defaults; GameScene only owns game
+    // composition and must not overwrite era-specific CRT calibration.
     if (renderSystem) {
       renderSystem.setOutlineParameters({
         color: 0x00ff00,
@@ -48,13 +49,6 @@ class GameScene extends Scene {
         depthSensitivity: 0.05
       });
 
-      renderSystem.setCRTParameters({
-        scanlineIntensity: 0.1,
-        vignetteIntensity: 0.1,
-        noise: 0.02,
-        flicker: 0.01,
-        curvature: new THREE.Vector2(4, 4)
-      });
     }
 
     // Create background

@@ -55,7 +55,6 @@ class RenderSystem {
     this.shaderParams = {
       crt: {
         enabled: this.useCRTEffect,
-        scanlineCount: 800.0,
         scanlineDensity: 0,
         scanlineIntensity: 0.15,
         rgbShiftPixels: 0,
@@ -288,8 +287,9 @@ class RenderSystem {
       this.crtPass = new ShaderPass(CRTShader);
       this.crtPass.uniforms.resolution.value.set(size.width, size.height);
       this.crtPass.uniforms.time.value = 0;
-      this.crtPass.uniforms.scanlineCount.value = this.shaderParams.crt.scanlineCount;
+      this.crtPass.uniforms.scanlineDensity.value = this.shaderParams.crt.scanlineDensity;
       this.crtPass.uniforms.scanlineIntensity.value = this.shaderParams.crt.scanlineIntensity;
+      this.crtPass.uniforms.rgbShiftPixels.value = this.shaderParams.crt.rgbShiftPixels;
       this.crtPass.uniforms.noise.value = this.shaderParams.crt.noise;
       this.crtPass.uniforms.flicker.value = this.shaderParams.crt.flicker;
       this.crtPass.uniforms.vignetteIntensity.value = this.shaderParams.crt.vignetteIntensity;
@@ -325,10 +325,8 @@ class RenderSystem {
   }
 
   _applyCRTPreset(preset, width, height) {
-    const scanlineCount = height * preset.scanlineDensity;
     Object.assign(this.shaderParams.crt, {
       enabled: !!preset.enabled,
-      scanlineCount,
       scanlineDensity: preset.scanlineDensity,
       scanlineIntensity: preset.scanlineIntensity,
       rgbShiftPixels: preset.rgbShiftPixels,
@@ -342,7 +340,6 @@ class RenderSystem {
     if (!this.crtPass) return;
     const uniforms = this.crtPass.uniforms;
     uniforms.resolution?.value.set(width, height);
-    if (uniforms.scanlineCount) uniforms.scanlineCount.value = scanlineCount;
     if (uniforms.scanlineDensity) uniforms.scanlineDensity.value = preset.scanlineDensity;
     if (uniforms.scanlineIntensity) uniforms.scanlineIntensity.value = preset.scanlineIntensity;
     if (uniforms.rgbShiftPixels) uniforms.rgbShiftPixels.value = preset.rgbShiftPixels;
@@ -408,7 +405,8 @@ class RenderSystem {
     if ('noise' in params) uniforms.noise.value = params.noise;
     if ('flicker' in params) uniforms.flicker.value = params.flicker;
     if ('curvature' in params) uniforms.curvature.value.copy(params.curvature);
-    if ('scanlineCount' in params) uniforms.scanlineCount.value = params.scanlineCount;
+    if ('scanlineDensity' in params) uniforms.scanlineDensity.value = params.scanlineDensity;
+    if ('rgbShiftPixels' in params) uniforms.rgbShiftPixels.value = params.rgbShiftPixels;
     if ('enabled' in params) this.setCRTEffectEnabled(params.enabled);
   }
 

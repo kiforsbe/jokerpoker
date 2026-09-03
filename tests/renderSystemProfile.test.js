@@ -7,8 +7,18 @@ import Scene from '../src/engine/Scene.js';
 import { TextureRasterizer } from '../src/rendering/TextureRasterizer.js';
 import { DISPLAY_PROFILES, SCREEN_ASPECT } from '../src/rendering/displayProfiles.js';
 import { ButtonComponent, TextDisplayComponent } from '../src/rendering/UIComponent.js';
+import { CRTShader } from '../src/rendering/shaders/CRTShader.js';
 
 globalThis.window ??= {};
+
+test('CRT shader uses logical resolution for scanline density and pixel RGB shift', () => {
+  assert.ok(CRTShader.uniforms.scanlineDensity);
+  assert.ok(CRTShader.uniforms.rgbShiftPixels);
+  assert.equal(CRTShader.uniforms.scanlineCount, undefined);
+  assert.match(CRTShader.fragmentShader, /resolution\.y\s*\*\s*scanlineDensity/);
+  assert.match(CRTShader.fragmentShader, /rgbShiftPixels\s*\/\s*max\(resolution\.x/);
+  assert.doesNotMatch(CRTShader.fragmentShader, /rgbShift\([^\n]+0\.002/);
+});
 
 function makeProfileSystem(container = { clientWidth: 1200, clientHeight: 700 }) {
   const system = new RenderSystem({ systems: new Map() });
@@ -35,13 +45,14 @@ function makeProfileSystem(container = { clientWidth: 1200, clientHeight: 700 })
   system.crtPass = {
     enabled: false,
     uniforms: {
-      resolution: { value: { set: (...args) => calls.push(['crtResolution', ...args]) } },
-      scanlineCount: { value: 0 },
+      resolution: { value: { set: (x, y) => calls.push(['crtResolution', x, y]) } },
+      scanlineDensity: { value: 0 },
       scanlineIntensity: { value: 0 },
+      rgbShiftPixels: { value: 0 },
       noise: { value: 0 },
       flicker: { value: 0 },
       vignetteIntensity: { value: 0 },
-      curvature: { value: { set: (...args) => calls.push(['curvature', ...args]) } },
+      curvature: { value: { set: (x, y) => calls.push(['curvature', x, y]) } },
     },
   };
   return { system, calls };
@@ -68,9 +79,31 @@ test('applies exact profile size, DPR 1, CSS fit, filters, composer, and uniform
   assert.equal(system.composer.writeBuffer.texture.magFilter, THREE.NearestFilter);
   assert.equal(system.composer.renderTarget1.texture.needsUpdate, true);
   assert.equal(system.crtPass.enabled, true);
-  assert.equal(system.crtPass.uniforms.scanlineCount.value, 360);
+  assert.equal(system.crtPass.uniforms.scanlineDensity.value, 0.6);
   assert.equal(system.crtPass.uniforms.scanlineIntensity.value, 0.08);
+  assert.equal(system.crtPass.uniforms.rgbShiftPixels.value, 0.6);
   assert.ok(calls.some(call => call.join(':') === 'curvature:7:7'));
+});
+
+test('CRT presets set every generic uniform and fully reset disabled early-2000s output', () => {
+  const { system, calls } = makeProfileSystem();
+
+  system.applyDisplayProfile(DISPLAY_PROFILES.eighties);
+  assert.equal(system.crtPass.enabled, true);
+  assert.ok(calls.some(call => call.join(':') === 'crtResolution:640:480'));
+  assert.equal(system.crtPass.uniforms.scanlineDensity.value, 0.5);
+  assert.equal(system.crtPass.uniforms.scanlineIntensity.value, 0.16);
+  assert.equal(system.crtPass.uniforms.rgbShiftPixels.value, 1.5);
+  assert.equal(system.crtPass.uniforms.noise.value, 0.025);
+  assert.equal(system.crtPass.uniforms.flicker.value, 0.012);
+  assert.equal(system.crtPass.uniforms.vignetteIntensity.value, 0.18);
+
+  system.applyDisplayProfile(DISPLAY_PROFILES.early2000s);
+  assert.equal(system.crtPass.enabled, false);
+  for (const uniform of ['scanlineDensity', 'scanlineIntensity', 'rgbShiftPixels', 'noise', 'flicker', 'vignetteIntensity']) {
+    assert.equal(system.crtPass.uniforms[uniform].value, 0, uniform);
+  }
+  assert.ok(calls.some(call => call.join(':') === 'curvature:1000:1000'));
 });
 
 test('all display profiles select fixed logical framebuffers and generic output sampling', () => {

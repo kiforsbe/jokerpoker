@@ -5,7 +5,8 @@ const CRTShader = {
     tDiffuse: { value: null },
     time: { value: 0.0 },
     resolution: { value: new THREE.Vector2() },
-    scanlineCount: { value: 800.0 },
+    scanlineDensity: { value: 0.0 },
+    rgbShiftPixels: { value: 0.0 },
     scanlineIntensity: { value: 0.1 },
     noise: { value: 0.02 },
     flicker: { value: 0.01 },
@@ -26,7 +27,8 @@ const CRTShader = {
     uniform float time;
     uniform vec2 resolution;
     uniform float scanlineIntensity;
-    uniform float scanlineCount;
+    uniform float scanlineDensity;
+    uniform float rgbShiftPixels;
     uniform float noise;
     uniform float flicker;
     uniform float vignetteIntensity;
@@ -48,6 +50,7 @@ const CRTShader = {
     }
 
     vec3 scanlines(vec2 uv, vec3 col) {
+      float scanlineCount = resolution.y * scanlineDensity;
       float scanline = sin(uv.y * scanlineCount * 3.14159 * 2.0) * 0.5 + 0.5;
       scanline = pow(scanline, 1.7);
       col *= 1.0 - (scanlineIntensity - scanlineIntensity * scanline);
@@ -73,7 +76,7 @@ const CRTShader = {
       }
       
       // RGB shift and color
-      vec3 col = rgbShift(tDiffuse, uv, 0.002);
+      vec3 col = rgbShift(tDiffuse, uv, rgbShiftPixels / max(resolution.x, 1.0));
       
       // Apply scanlines
       col = scanlines(uv, col);
