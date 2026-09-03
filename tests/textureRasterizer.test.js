@@ -30,8 +30,9 @@ test('sizes registered textures from world width at every display density', () =
   for (const [id, expected] of [['eighties', [240, 120]], ['nineties', [300, 150]], ['early2000s', [384, 192]]]) {
     const texture = fakeTexture();
     const rasterizer = new TextureRasterizer(DISPLAY_PROFILES[id]);
-    rasterizer.register(texture, 1, () => {});
-    assert.deepEqual([texture.image.width, texture.image.height], expected, id);
+    const handle = rasterizer.register({ label: id, canvas: texture.image, texture, nativeWidth: 40, nativeHeight: 20, worldWidth: 1, draw: () => {} });
+    assert.equal(texture.userData.rasterHandle, handle);
+    assert.deepEqual([handle.canvas.width, handle.canvas.height], expected, id);
   }
 });
 
@@ -39,13 +40,13 @@ test('redraw clears before drawing, applies sampling, and marks texture dirty', 
   const texture = fakeTexture();
   let draws = 0;
   const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties);
-  rasterizer.register(texture, { worldWidth: 0.5, drawCallback: () => { draws++; } });
+  const handle = rasterizer.register({ canvas: texture.image, texture, nativeWidth: 40, nativeHeight: 20, worldWidth: 0.5, draw: () => { draws++; } });
   assert.equal(draws, 1);
   assert.equal(texture.minFilter, 1003);
   assert.equal(texture.magFilter, 1003);
   assert.equal(texture.needsUpdate, true);
   texture.needsUpdate = false;
-  assert.equal(rasterizer.redraw(texture), true);
+  assert.equal(rasterizer.redraw(handle), true);
   assert.equal(draws, 2);
   assert.equal(texture.needsUpdate, true);
   assert.deepEqual(texture.image.calls[0], ['clearRect', 0, 0, 120, 60]);
@@ -56,8 +57,8 @@ test('applyDisplayProfile resizes and redraws all registered textures', () => {
   const second = fakeTexture(fakeCanvas(20, 40));
   let draws = 0;
   const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties);
-  rasterizer.register(first, 1, () => { draws++; });
-  rasterizer.register(second, { worldWidth: 0.25, drawCallback: () => { draws++; } });
+  rasterizer.register({ canvas: first.image, texture: first, nativeWidth: 40, nativeHeight: 20, worldWidth: 1, draw: () => { draws++; } });
+  rasterizer.register({ canvas: second.image, texture: second, nativeWidth: 20, nativeHeight: 40, worldWidth: 0.25, draw: () => { draws++; } });
   rasterizer.applyDisplayProfile(DISPLAY_PROFILES.nineties);
   assert.deepEqual([first.image.width, first.image.height], [300, 150]);
   assert.deepEqual([second.image.width, second.image.height], [75, 150]);
@@ -68,10 +69,11 @@ test('unregister is idempotent and prevents later redraws', () => {
   const texture = fakeTexture();
   let draws = 0;
   const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties);
-  rasterizer.register(texture, 1, () => { draws++; });
-  assert.equal(rasterizer.unregister(texture), true);
-  assert.equal(rasterizer.unregister(texture), false);
-  assert.equal(rasterizer.redraw(texture), false);
+  const handle = rasterizer.register({ canvas: texture.image, texture, worldWidth: 1, draw: () => { draws++; } });
+  assert.equal(rasterizer.unregister(handle), true);
+  assert.equal(rasterizer.unregister(handle), false);
+  assert.equal(rasterizer.redraw(handle), false);
+  assert.equal(texture.userData?.rasterHandle, undefined);
   assert.equal(draws, 1);
 });
 
@@ -79,12 +81,13 @@ test('draw failures leave a visible error texture and notify the owner', () => {
   const texture = fakeTexture();
   const errors = [];
   const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties, {
-    onDrawError: (error, registeredTexture) => errors.push([error, registeredTexture]),
+    onDrawError: (error, handle) => errors.push([error, handle]),
   });
-  rasterizer.register(texture, 1, () => { throw new Error('bad art'); });
+  const handle = rasterizer.register({ label: 'joker', canvas: texture.image, texture, worldWidth: 1, draw: () => { throw new Error('bad art'); } });
   assert.equal(errors.length, 1);
   assert.equal(errors[0][0].message, 'bad art');
-  assert.equal(errors[0][1], texture);
+  assert.equal(errors[0][1], handle);
+  assert.equal(errors[0][1].label, 'joker');
   assert.ok(texture.image.calls.some(call => call[0] === 'fillRect'));
   assert.ok(texture.image.calls.some(call => call[0] === 'fillText'));
   assert.equal(texture.needsUpdate, true);

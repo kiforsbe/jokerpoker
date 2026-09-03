@@ -5,29 +5,25 @@ import { pixelsPerWorldUnit, validateDisplayProfile } from './displayProfiles.js
 const NEAREST_FILTER = 1003;
 const LINEAR_FILTER = 1006;
 
-function asRegistration(texture, worldWidth, drawCallback, nativeAspectRatio) {
-  if (worldWidth && typeof worldWidth === 'object') {
-    const options = worldWidth;
-    worldWidth = options.worldWidth;
-    drawCallback = options.drawCallback ?? options.draw ?? drawCallback;
-    nativeAspectRatio = options.nativeAspectRatio;
-  }
-  if (!texture?.image || typeof texture.image.getContext !== 'function') {
+function asRegistration(descriptor) {
+  const { label = 'canvas texture', texture, worldWidth, draw } = descriptor ?? {};
+  const canvas = descriptor?.canvas ?? texture?.image;
+  if (!texture || !canvas || typeof canvas.getContext !== 'function') {
     throw new TypeError('TextureRasterizer.register requires a canvas texture');
   }
   if (!Number.isFinite(worldWidth) || worldWidth <= 0) {
     throw new TypeError('TextureRasterizer world width must be positive');
   }
-  if (typeof drawCallback !== 'function') {
+  if (typeof draw !== 'function') {
     throw new TypeError('TextureRasterizer requires a draw callback');
   }
-  const canvas = texture.image;
-  const aspect = nativeAspectRatio ?? (canvas.width > 0 && canvas.height > 0
-    ? canvas.height / canvas.width : 1);
+  const nativeWidth = descriptor.nativeWidth ?? canvas.width;
+  const nativeHeight = descriptor.nativeHeight ?? canvas.height;
+  const aspect = nativeHeight / nativeWidth;
   if (!Number.isFinite(aspect) || aspect <= 0) {
     throw new TypeError('TextureRasterizer native aspect ratio must be positive');
   }
-  return { texture, worldWidth, drawCallback, nativeAspectRatio: aspect };
+  return { label, canvas, texture, worldWidth, draw, nativeAspectRatio: aspect };
 }
 
 export class TextureRasterizer {
@@ -35,25 +31,29 @@ export class TextureRasterizer {
     validateDisplayProfile(profile);
     this.profile = profile;
     this.onDrawError = onDrawError;
-    this.registrations = new Map();
+    this.registrations = new Set();
   }
 
-  register(texture, worldWidth, drawCallback, nativeAspectRatio) {
-    const registration = asRegistration(texture, worldWidth, drawCallback, nativeAspectRatio);
-    this.registrations.set(texture, registration);
-    this._redrawRegistration(registration);
-    return texture;
+  register(descriptor) {
+    const registration = asRegistration(descriptor);
+    const handle = Object.freeze(registration);
+    this.registrations.add(handle);
+    handle.texture.userData ??= {};
+    handle.texture.userData.rasterHandle = handle;
+    this._redrawRegistration(handle);
+    return handle;
   }
 
-  unregister(texture) {
-    return this.registrations.delete(texture);
+  unregister(handle) {
+    if (!this.registrations.delete(handle)) return false;
+    if (handle.texture.userData?.rasterHandle === handle) delete handle.texture.userData.rasterHandle;
+    return true;
   }
 
   redraw(texture) {
     if (texture !== undefined) {
-      const registration = this.registrations.get(texture);
-      if (!registration) return false;
-      this._redrawRegistration(registration);
+      if (!this.registrations.has(texture)) return false;
+      this._redrawRegistration(texture);
       return true;
     }
     for (const registration of this.registrations.values()) this._redrawRegistration(registration);
@@ -67,8 +67,7 @@ export class TextureRasterizer {
   }
 
   _redrawRegistration(registration) {
-    const { texture, worldWidth, drawCallback, nativeAspectRatio } = registration;
-    const canvas = texture.image;
+    const { texture, canvas, worldWidth, draw, nativeAspectRatio } = registration;
     const width = Math.max(1, Math.round(worldWidth * pixelsPerWorldUnit(this.profile)));
     const height = Math.max(1, Math.round(width * nativeAspectRatio));
     const resized = canvas.width !== width || canvas.height !== height;
@@ -80,10 +79,10 @@ export class TextureRasterizer {
     if (!context) throw new Error('TextureRasterizer could not acquire a 2D context');
     if (!resized) context.clearRect(0, 0, width, height);
     try {
-      drawCallback(context, canvas);
+      draw(context, canvas);
     } catch (error) {
       this._drawError(context, width, height);
-      try { this.onDrawError(error, texture); } catch { /* diagnostics must not break rendering */ }
+      try { this.onDrawError(error, registration); } catch { /* diagnostics must not break rendering */ }
     }
     const filter = this.profile.sampling.textures === 'nearest' ? NEAREST_FILTER : LINEAR_FILTER;
     texture.minFilter = texture.magFilter = filter;
