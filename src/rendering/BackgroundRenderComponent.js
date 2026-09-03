@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RenderComponent } from './RenderComponent.js';
-import { PALETTE, LAYOUT, paintThemed, onThemeChanged } from './theme.js';
+import { PALETTE, LAYOUT } from './uiStyle.js';
+import { paintThemed, onThemeChanged } from './theme.js';
 import GameLogger from '../utils/GameLogger.js';
 
 // The playfield: a dark bezel surround with a centered 4:3 "CRT screen" —

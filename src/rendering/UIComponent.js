@@ -1,7 +1,8 @@
 import RenderComponent from './RenderComponent.js';
 import { GameAudioComponent } from '../audio/AudioComponent.js';
 import GameLogger from '../utils/GameLogger.js';
-import { getTheme, PALETTE, paintThemed, onThemeChanged, fillTextCentered } from './theme.js';
+import { getTheme, paintThemed, onThemeChanged } from './theme.js';
+import { PALETTE, uiFont, fillTextCentered } from './uiStyle.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
 class UIComponent extends RenderComponent {
@@ -262,10 +263,10 @@ class StatusBoxComponent extends UIComponent {
     let px = Math.round(h * 0.48);
     const usable = w * 0.82; // width between the 9% text paddings
     const minGap = w * 0.05;
-    ctx.font = getTheme().uiFont(px);
+    ctx.font = uiFont(px);
     while (px > 8 && ctx.measureText(this.label).width + ctx.measureText(this.value).width + minGap > usable) {
       px--;
-      ctx.font = getTheme().uiFont(px);
+      ctx.font = uiFont(px);
     }
     // 'H' reference: label/value are caps and digits with no descenders,
     // so center their actual glyph band rather than the full font band.
@@ -333,10 +334,10 @@ class BetDisplayComponent extends UIComponent {
     const cx = w / 2, cy = h * 0.5;
     const rx = w * 0.071, ry = h * 0.44, gap = w * 0.028;
     let px = Math.round(h * 0.48);
-    ctx.font = getTheme().uiFont(px);
+    ctx.font = uiFont(px);
     while (px > 8 && ctx.measureText(label).width > cx - rx - gap - w * 0.01) {
       px--;
-      ctx.font = getTheme().uiFont(px);
+      ctx.font = uiFont(px);
     }
     // 'H' reference: the label and the value have no descenders, so center
     // their actual glyph band rather than the full font band.

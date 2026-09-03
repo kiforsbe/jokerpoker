@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { RenderComponent } from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
 import GameLogger from '../utils/GameLogger.js';
-import { getTheme, paintThemed, fillTextCentered, textureFilter } from './theme.js';
+import { getTheme, paintThemed, textureFilter } from './theme.js';
+import { uiFont, fillTextCentered } from './uiStyle.js';
 import { t } from '../i18n.js';
 
 // World-space sprite size (orthographic units); width feeds the retro pixel grid.
@@ -46,7 +47,7 @@ class WinDisplayComponent extends RenderComponent {
     paintThemed(context, (ctx) => {
       const w = ctx.canvas.width, h = ctx.canvas.height;
       ctx.fillStyle = '#ffff00';
-      ctx.font = getTheme().uiFont(Math.round(h * 0.5));
+      ctx.font = uiFont(Math.round(h * 0.5));
       ctx.textAlign = 'center';
       fillTextCentered(ctx, this.text, w / 2, h / 2);
     }, WIN_WORLD_WIDTH);

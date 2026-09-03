@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
-import { getTheme, paintThemed, onThemeChanged, fillTextCentered, PALETTE, LAYOUT } from './theme.js';
+import { getTheme, paintThemed, onThemeChanged } from './theme.js';
+import { uiFont, cardFont, fillTextCentered, PALETTE, LAYOUT } from './uiStyle.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
 // Card face texture resolution. Higher than the mesh needs so text/pips stay
@@ -277,7 +278,7 @@ class CardRenderComponent extends RenderComponent {
     const inset = h * 0.18;
     ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
     ctx.fillStyle = PALETTE.holdText;
-    ctx.font = getTheme().uiFont(Math.round(h * 0.55));
+      ctx.font = uiFont(Math.round(h * 0.55));
     ctx.textAlign = 'center';
     fillTextCentered(ctx, t('hold'), w / 2, h / 2, 'H');
   }
@@ -370,7 +371,7 @@ class CardRenderComponent extends RenderComponent {
       const stepY = (h * 0.60) / (name.length - 1);
       drawIndex = () => {
         ctx.fillStyle = COLORS.jokerText;
-        ctx.font = getTheme().cardFont(letterFont);
+        ctx.font = cardFont(letterFont);
         name.split('').forEach((ch, i) => {
           ctx.fillText(ch, cornerX, topY + i * stepY);
         });
@@ -380,16 +381,16 @@ class CardRenderComponent extends RenderComponent {
       drawIndex = () => {
         // Rank value
         ctx.fillStyle = color;
-        ctx.font = getTheme().cardFont(idxFont);
+        ctx.font = cardFont(idxFont);
         const valW = ctx.measureText(idxText).width;
         ctx.fillText(idxText, cornerX, h * CORNER_INDEX_RANK_Y_SCALE);
         // Suit, sized so its glyph width matches the rank width (capped at the rank
         // font so a wide "10" doesn't blow it up).
         let suitFont = idxFont;
-        ctx.font = getTheme().cardFont(suitFont);
+        ctx.font = cardFont(suitFont);
         const suitW = ctx.measureText(sym).width;
         suitFont = Math.min(idxFont, suitFont * (valW / suitW));
-        ctx.font = getTheme().cardFont(Math.round(suitFont));
+        ctx.font = cardFont(Math.round(suitFont));
         ctx.fillText(sym, cornerX, h * CORNER_INDEX_SUIT_Y_SCALE);
       };
     }

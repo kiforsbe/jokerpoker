@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
-import { PALETTE, LAYOUT, SCREEN_ASPECT, getTheme, onThemeChanged, textureFilter } from './theme.js';
+import { SCREEN_ASPECT, getTheme, onThemeChanged, textureFilter } from './theme.js';
+import { PALETTE, LAYOUT, uiFont } from './uiStyle.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
 // Left-scrolling rules ticker on the bottom gray band, visible only while
@@ -94,7 +95,7 @@ class TickerComponent extends RenderComponent {
   _drawTile() {
     const canvas = this._canvas;
     const ctx = canvas.getContext('2d');
-    const font = getTheme().uiFont(28);
+    const font = uiFont(28);
     ctx.font = font;
     const sections = tickerSections();
     const widths = sections.map(

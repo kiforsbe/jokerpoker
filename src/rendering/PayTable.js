@@ -1,7 +1,8 @@
 import RenderComponent from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
 import { PAYTABLE } from '../game/payouts.js';
-import { getTheme, PALETTE, paintThemed, onThemeChanged, fillTextCentered } from './theme.js';
+import { getTheme, onThemeChanged, paintThemed } from './theme.js';
+import { PALETTE, uiFont, fillTextCentered } from './uiStyle.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
 // World-space sprite size (orthographic units); width feeds the retro pixel
@@ -56,12 +57,12 @@ class PayTableComponent extends RenderComponent {
       const name = t(row.key);
       const value = String(row.payout);
       let px = basePx;
-      ctx.font = getTheme().uiFont(px);
+      ctx.font = uiFont(px);
       while (px > 8 &&
              ctx.measureText(name).width + ctx.measureText(value).width + w * 0.04
                > w * 0.946) {
         px--;
-        ctx.font = getTheme().uiFont(px);
+      ctx.font = uiFont(px);
       }
       ctx.fillStyle = PALETTE.payText;
       ctx.textAlign = 'left';
