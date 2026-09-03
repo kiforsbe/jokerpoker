@@ -60,8 +60,7 @@ DISPLAY_PROFILE_ORDER.forEach((id) => validateDisplayProfile(profileFixtures[id]
 export const DISPLAY_PROFILES = freezeDeep(profileFixtures);
 
 export function getDisplayProfile(id) {
-  const profileId = LEGACY_PROFILE_IDS[id] ?? id;
-  return DISPLAY_PROFILES[profileId] ?? null;
+  return DISPLAY_PROFILES[id] ?? null;
 }
 
 export function pixelsPerWorldUnit(profile) {

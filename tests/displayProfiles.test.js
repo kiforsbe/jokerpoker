@@ -68,8 +68,9 @@ test('contains sampling, card-art, and CRT settings for each era', () => {
 test('looks up profiles, maps legacy IDs, and calculates pixels per world unit', () => {
   assert.equal(getDisplayProfile('eighties'), DISPLAY_PROFILES.eighties);
   assert.equal(getDisplayProfile('unknown'), null);
+  assert.equal(getDisplayProfile('retro'), null);
   assert.deepEqual(LEGACY_PROFILE_IDS, { retro: 'eighties', medium: 'nineties', hires: 'early2000s' });
-  assert.deepEqual(Object.entries(LEGACY_PROFILE_IDS).map(([legacy, id]) => getDisplayProfile(LEGACY_PROFILE_IDS[legacy]).label), ['1980s', '1990s', 'Early 2000s']);
+  assert.deepEqual(Object.values(LEGACY_PROFILE_IDS).map((id) => getDisplayProfile(id).label), ['1980s', '1990s', 'Early 2000s']);
   assert.deepEqual(ids.map((id) => pixelsPerWorldUnit(DISPLAY_PROFILES[id])), [240, 300, 384]);
 });
 
