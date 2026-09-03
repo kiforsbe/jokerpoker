@@ -16,6 +16,7 @@ const ids = ['eighties', 'nineties', 'early2000s'];
 test('defines the immutable 4:3 profile registry and exact framebuffers', () => {
   assert.equal(SCREEN_ASPECT, 4 / 3);
   assert.deepEqual(DISPLAY_PROFILE_ORDER, ids);
+  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].id), ids);
   assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].framebuffer), [
     { width: 640, height: 480 },
     { width: 800, height: 600 },

@@ -25,7 +25,7 @@ export function validateDisplayProfile(profile) {
 
 const profileFixtures = {
   eighties: {
-    label: '1980s', framebuffer: { width: 640, height: 480 },
+    id: 'eighties', label: '1980s', framebuffer: { width: 640, height: 480 },
     sampling: { scene: 'nearest', textures: 'nearest', output: 'pixelated' },
     cardArtLevel: 'coarse-pixel',
     postProcessing: { crt: {
@@ -35,7 +35,7 @@ const profileFixtures = {
     } },
   },
   nineties: {
-    label: '1990s', framebuffer: { width: 800, height: 600 },
+    id: 'nineties', label: '1990s', framebuffer: { width: 800, height: 600 },
     sampling: { scene: 'nearest', textures: 'nearest', output: 'pixelated' },
     cardArtLevel: 'detailed-pixel',
     postProcessing: { crt: {
@@ -45,7 +45,7 @@ const profileFixtures = {
     } },
   },
   early2000s: {
-    label: 'Early 2000s', framebuffer: { width: 1024, height: 768 },
+    id: 'early2000s', label: 'Early 2000s', framebuffer: { width: 1024, height: 768 },
     sampling: { scene: 'linear', textures: 'linear', output: 'auto' },
     cardArtLevel: 'high-detail',
     postProcessing: { crt: {

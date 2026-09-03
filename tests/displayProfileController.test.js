@@ -139,3 +139,11 @@ test('falls back to eighties for invalid current stored IDs without using legacy
   assert.equal(controller.getDisplayProfile().label, '1980s');
   assert.deepEqual(storage.writes, []);
 });
+
+test('does not migrate inherited legacy property names', () => {
+  const storage = createStorage({ [LEGACY_KEY]: 'toString' });
+  const controller = new DisplayProfileController({ storage });
+
+  assert.equal(controller.getDisplayProfile().label, '1980s');
+  assert.deepEqual(storage.writes, []);
+});

@@ -22,7 +22,10 @@ export class DisplayProfileController {
 
     const storedId = storage.getItem(PROFILE_KEY);
     if (storedId === null) {
-      const legacyId = LEGACY_PROFILE_IDS[storage.getItem(LEGACY_KEY)];
+      const legacyStoredId = storage.getItem(LEGACY_KEY);
+      const legacyId = Object.hasOwn(LEGACY_PROFILE_IDS, legacyStoredId)
+        ? LEGACY_PROFILE_IDS[legacyStoredId]
+        : undefined;
       if (legacyId) storage.setItem(PROFILE_KEY, legacyId);
       this.activeProfile = profileForCanonicalId(legacyId) ?? profileForCanonicalId(DEFAULT_PROFILE_ID);
     } else {
