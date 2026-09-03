@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
-import { paintThemed, onThemeChanged } from './theme.js';
 import { drawCardBack, CARD_WORLD_WIDTH, CARD_TEXTURE_WIDTH, CARD_TEXTURE_HEIGHT } from './CardRenderComponent.js';
 
 // The visible deck at the top-left of the playfield: a small face-down
@@ -23,7 +22,6 @@ const SHUFFLE_TILT = 0.09;     // max rotation of each half (radians)
 class DeckRenderComponent extends RenderComponent {
   constructor() {
     super();
-    this._offTheme = null;
     this._shuffleT = -1;        // seconds into the animation; <0 = not running
     this._shuffleResolve = null;
     // Set by the game manager: clicking the deck acts as the PLAY button
@@ -41,7 +39,8 @@ class DeckRenderComponent extends RenderComponent {
     // One shared back texture for all stack meshes.
     const texture = this._renderSystem.createCanvasTexture(
       CARD_TEXTURE_WIDTH, CARD_TEXTURE_HEIGHT,
-      (ctx) => paintThemed(ctx, (c) => drawCardBack(c), DECK_WIDTH)
+      (ctx) => drawCardBack(ctx),
+      { worldWidth: DECK_WIDTH, label: 'Deck' },
     );
 
     const geometry = new THREE.PlaneGeometry(DECK_WIDTH, DECK_HEIGHT);
@@ -64,10 +63,6 @@ class DeckRenderComponent extends RenderComponent {
     this.halfB = makeMesh('DeckHalfB', 0, 0, 4);
     this.halfA = makeMesh('DeckHalfA', 0, 0, 4);
 
-    this._offTheme = onThemeChanged(() => {
-      // The texture is shared, so redrawing it once updates all meshes.
-      this.updateTexture(this.halfA, (ctx) => paintThemed(ctx, (c) => drawCardBack(c), DECK_WIDTH));
-    });
   }
 
   // Plays the split-and-merge shuffle; resolves when the stack is back
@@ -104,7 +99,6 @@ class DeckRenderComponent extends RenderComponent {
   }
 
   onRemove() {
-    if (this._offTheme) { this._offTheme(); this._offTheme = null; }
     this._shuffleResolve?.();
     this._shuffleResolve = null;
     super.onRemove();

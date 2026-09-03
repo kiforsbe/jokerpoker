@@ -1,7 +1,6 @@
 import RenderComponent from './RenderComponent.js';
 import { GameAudioComponent } from '../audio/AudioComponent.js';
 import GameLogger from '../utils/GameLogger.js';
-import { getTheme, paintThemed, onThemeChanged } from './theme.js';
 import { PALETTE, uiFont, fillTextCentered } from './uiStyle.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
@@ -227,7 +226,6 @@ class StatusBoxComponent extends UIComponent {
     this.boxWidth = width;
     this.boxHeight = height;
     this.isInteractable = false;
-    this._offTheme = null;
     this._offLang = null;
   }
 
@@ -236,10 +234,10 @@ class StatusBoxComponent extends UIComponent {
   onRenderSystemReady() {
     if (!this._renderSystem) return;
     const texture = this._renderSystem.createCanvasTexture(320, 96,
-      (ctx) => paintThemed(ctx, (c) => this._draw(c), this.boxWidth));
+      (ctx) => this._draw(ctx),
+      { worldWidth: this.boxWidth, label: 'StatusBox' });
     const mesh = this.createSprite(texture, this.boxWidth, this.boxHeight);
     mesh.renderOrder = 5;
-    this._offTheme = onThemeChanged(() => this._redraw());
     this._offLang = onLanguageChanged(() => this._redraw());
   }
 
@@ -278,7 +276,7 @@ class StatusBoxComponent extends UIComponent {
 
   _redraw() {
     if (this.meshes[0] && this._renderSystem) {
-      this.updateTexture(this.meshes[0], (ctx) => paintThemed(ctx, (c) => this._draw(c), this.boxWidth));
+      this.updateTexture(this.meshes[0], (ctx) => this._draw(ctx));
     }
   }
 
@@ -288,7 +286,6 @@ class StatusBoxComponent extends UIComponent {
   }
 
   onRemove() {
-    if (this._offTheme) { this._offTheme(); this._offTheme = null; }
     if (this._offLang) { this._offLang(); this._offLang = null; }
     super.onRemove();
   }
@@ -309,7 +306,6 @@ class BetDisplayComponent extends UIComponent {
     // into a muddy brown. Stay white; dim a touch on hover as feedback.
     this.normalColor = 0xffffff;
     this.hoverColor = 0xdddddd;
-    this._offTheme = null;
     this._offLang = null;
   }
 
@@ -317,10 +313,10 @@ class BetDisplayComponent extends UIComponent {
     if (!this._renderSystem) return;
     // 540x96 tracks the 1.0 x 0.18 world box's aspect ratio.
     const texture = this._renderSystem.createCanvasTexture(540, 96,
-      (ctx) => paintThemed(ctx, (c) => this._draw(c), this.boxWidth));
+      (ctx) => this._draw(ctx),
+      { worldWidth: this.boxWidth, label: 'BetDisplay' });
     const mesh = this.createSprite(texture, this.boxWidth, this.boxHeight);
     mesh.renderOrder = 5;
-    this._offTheme = onThemeChanged(() => this._redraw());
     this._offLang = onLanguageChanged(() => this._redraw());
   }
 
@@ -356,7 +352,7 @@ class BetDisplayComponent extends UIComponent {
 
   _redraw() {
     if (this.meshes[0] && this._renderSystem) {
-      this.updateTexture(this.meshes[0], (ctx) => paintThemed(ctx, (c) => this._draw(c), this.boxWidth));
+      this.updateTexture(this.meshes[0], (ctx) => this._draw(ctx));
     }
   }
 
@@ -366,7 +362,6 @@ class BetDisplayComponent extends UIComponent {
   }
 
   onRemove() {
-    if (this._offTheme) { this._offTheme(); this._offTheme = null; }
     if (this._offLang) { this._offLang(); this._offLang = null; }
     super.onRemove();
   }

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
-import { getTheme, paintThemed, onThemeChanged } from './theme.js';
 import { uiFont, cardFont, fillTextCentered, PALETTE, LAYOUT } from './uiStyle.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
@@ -162,7 +161,6 @@ class CardRenderComponent extends RenderComponent {
     // (Kept in sync with CARD_WORLD_WIDTH above, which sizes the hold box.)
     this.CARD_WIDTH = CARD_WORLD_WIDTH;
     this.CARD_HEIGHT = this.CARD_WIDTH * 1.4; // Maintains 2.5:3.5 ratio
-    this._offTheme = null;
   }
 
   onAdd() {
@@ -179,7 +177,6 @@ class CardRenderComponent extends RenderComponent {
   }
 
   onRemove() {
-    if (this._offTheme) { this._offTheme(); this._offTheme = null; }
     if (this._offLang) { this._offLang(); this._offLang = null; }
     super.onRemove();
   }
@@ -196,9 +193,12 @@ class CardRenderComponent extends RenderComponent {
       return;
     }
 
-    const texture = this._renderSystem.createCanvasTexture(CARD_TEXTURE_WIDTH, CARD_TEXTURE_HEIGHT, (context) => {
-      paintThemed(context, (ctx) => this.drawCard(ctx, cardComponent), this.CARD_WIDTH);
-    });
+    const texture = this._renderSystem.createCanvasTexture(
+      CARD_TEXTURE_WIDTH,
+      CARD_TEXTURE_HEIGHT,
+      (context) => this.drawCard(context, cardComponent),
+      { worldWidth: this.CARD_WIDTH, label: 'Card' },
+    );
 
     const cardGeometry = new THREE.PlaneGeometry(this.CARD_WIDTH, this.CARD_HEIGHT);
     const cardMaterial = new THREE.MeshBasicMaterial({
@@ -217,9 +217,12 @@ class CardRenderComponent extends RenderComponent {
 
     // Holding is indicated only by the "hold" box on the bottom band —
     // the card itself is not moved, tinted, or outlined.
-    const holdTexture = this._renderSystem.createCanvasTexture(HOLD_TEXTURE_WIDTH, HOLD_TEXTURE_HEIGHT, (ctx) => {
-      paintThemed(ctx, (c) => this._drawHoldLabel(c), HOLD_WORLD_WIDTH);
-    });
+    const holdTexture = this._renderSystem.createCanvasTexture(
+      HOLD_TEXTURE_WIDTH,
+      HOLD_TEXTURE_HEIGHT,
+      (ctx) => this._drawHoldLabel(ctx),
+      { worldWidth: HOLD_WORLD_WIDTH, label: 'HoldLabel' },
+    );
     const holdGeo = new THREE.PlaneGeometry(HOLD_WORLD_WIDTH, HOLD_WORLD_HEIGHT);
     const holdMat = new THREE.MeshBasicMaterial({ map: holdTexture, transparent: true, depthTest: false, depthWrite: false });
     this.holdLabel = new THREE.Mesh(holdGeo, holdMat);
@@ -234,36 +237,22 @@ class CardRenderComponent extends RenderComponent {
     (this.gameObject.parent ?? this.gameObject).add(this.holdLabel);
     this.meshes.push(this.holdLabel);
 
-    this._offTheme = onThemeChanged(() => {
-      const card = this.gameObject?.getComponent('Card');
-      if (!card || !this._renderSystem) return;
-      if (this.cardMesh) {
-        this.updateTexture(this.cardMesh, (context) => {
-          paintThemed(context, (ctx) => this.drawCard(ctx, card), this.CARD_WIDTH);
-        });
-      }
-      if (this.holdLabel) {
-        this.updateTexture(this.holdLabel, (ctx) => {
-          paintThemed(ctx, (c) => this._drawHoldLabel(c), HOLD_WORLD_WIDTH);
-        });
-      }
-    });
     this._offLang = onLanguageChanged(() => {
       if (!this._renderSystem) return;
       if (this.holdLabel) {
-        this.updateTexture(this.holdLabel, (ctx) => {
-          paintThemed(ctx, (c) => this._drawHoldLabel(c), HOLD_WORLD_WIDTH);
-        });
+        this.updateTexture(this.holdLabel, (ctx) => this._drawHoldLabel(ctx));
       }
       // The joker card carries translated text ("JOKERI"), so repaint the
       // face too.
       const card = this.gameObject?.getComponent('Card');
       if (card?.value === 'Joker' && this.cardMesh) {
-        this.updateTexture(this.cardMesh, (context) => {
-          paintThemed(context, (ctx) => this.drawCard(ctx, card), this.CARD_WIDTH);
-        });
+        this.updateTexture(this.cardMesh, (context) => this.drawCard(context, card));
       }
     });
+  }
+
+  _usesPixelArt() {
+    return this._renderSystem?.activeDisplayProfile?.cardArtLevel !== 'high-detail';
   }
 
   // Cyan "hold" box with a double blue border, per the reference photos.
@@ -363,7 +352,7 @@ class CardRenderComponent extends RenderComponent {
       // (retro) inks ~35% smaller than bold Arial (hires) at equal px,
       // so the retro size compensates.
       const name = t('joker');
-      const letterFont = Math.round(w * (getTheme().pixelCourts ? 0.24 : 0.18));
+      const letterFont = Math.round(w * (this._usesPixelArt() ? 0.24 : 0.18));
       // Generous top margin; the column then runs well down the card edge
       // (the mirrored one occupies the opposite edge, so they can't meet).
       const topY = h * 0.10;
@@ -405,7 +394,7 @@ class CardRenderComponent extends RenderComponent {
 
     // ---- Joker: a jester figure, pixel-art in retro, vector in hires ----
     if (value === 'Joker') {
-      if (getTheme().pixelCourts) {
+      if (this._usesPixelArt()) {
         this.drawPixelJoker(ctx, w, h);
       } else {
         this.drawVectorJoker(ctx, w, h);
@@ -434,7 +423,7 @@ class CardRenderComponent extends RenderComponent {
         }
       }
     } else {
-      if (getTheme().pixelCourts) {
+      if (this._usesPixelArt()) {
         // ---- Face cards J / Q / K: mirrored pixel-art figure (retro) ----
         this.drawPixelCourt(ctx, w, h, value);
       } else {
@@ -717,9 +706,7 @@ class CardRenderComponent extends RenderComponent {
     this.isFlipped = !this.isFlipped;
     const cardComponent = this.gameObject.getComponent('Card');
     if (cardComponent && this._renderSystem) {
-      this.updateTexture(this.cardMesh, (context) => {
-        paintThemed(context, (ctx) => this.drawCard(ctx, cardComponent), this.CARD_WIDTH);
-      });
+      this.updateTexture(this.cardMesh, (context) => this.drawCard(context, cardComponent));
     }
   }
 

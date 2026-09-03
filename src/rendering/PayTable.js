@@ -1,7 +1,6 @@
 import RenderComponent from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
 import { PAYTABLE } from '../game/payouts.js';
-import { getTheme, onThemeChanged, paintThemed } from './theme.js';
 import { PALETTE, uiFont, fillTextCentered } from './uiStyle.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
@@ -17,7 +16,6 @@ class PayTableComponent extends RenderComponent {
     super();
     this.rows = PAYTABLE;          // [{key,name,payout}]
     this.highlightKey = '';
-    this._offTheme = null;
   }
 
   get type() { return 'PayTable'; }
@@ -27,13 +25,13 @@ class PayTableComponent extends RenderComponent {
     // 640x352 matches the 1.5 x 0.825 world box's aspect ratio.
     const mesh = this.createSprite(
       this._renderSystem.createCanvasTexture(640, 352,
-        (ctx) => paintThemed(ctx, (c) => this._draw(c), PAYTABLE_WORLD_WIDTH)),
+        (ctx) => this._draw(ctx),
+        { worldWidth: PAYTABLE_WORLD_WIDTH, label: 'PayTable' }),
       PAYTABLE_WORLD_WIDTH, PAYTABLE_WORLD_HEIGHT
     );
     mesh.renderOrder = 2;
     mesh.material.depthTest = false;
     mesh.material.depthWrite = false;
-    this._offTheme = onThemeChanged(() => this._redraw());
     this._offLang = onLanguageChanged(() => this._redraw());
   }
 
@@ -74,7 +72,7 @@ class PayTableComponent extends RenderComponent {
 
   _redraw() {
     if (this.meshes[0] && this._renderSystem) {
-      this.updateTexture(this.meshes[0], (ctx) => paintThemed(ctx, (c) => this._draw(c), PAYTABLE_WORLD_WIDTH));
+      this.updateTexture(this.meshes[0], (ctx) => this._draw(ctx));
     }
   }
 
@@ -84,7 +82,6 @@ class PayTableComponent extends RenderComponent {
   }
 
   onRemove() {
-    if (this._offTheme) { this._offTheme(); this._offTheme = null; }
     if (this._offLang) { this._offLang(); this._offLang = null; }
     super.onRemove();
   }

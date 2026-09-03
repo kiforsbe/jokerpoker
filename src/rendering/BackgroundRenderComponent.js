@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { RenderComponent } from './RenderComponent.js';
 import { PALETTE, LAYOUT } from './uiStyle.js';
-import { paintThemed, onThemeChanged } from './theme.js';
 import GameLogger from '../utils/GameLogger.js';
 
 // The playfield: a dark bezel surround with a centered 4:3 "CRT screen" —
@@ -20,7 +19,6 @@ class BackgroundRenderComponent extends RenderComponent {
   constructor() {
     super();
     this.logger = new GameLogger();
-    this._offTheme = null;
     // Set by GameScene: (side) => void, called with 'small' | 'large' when
     // the player taps a field half during tuplaus. Everything else on the
     // table sits nearer the camera, so the background only receives clicks
@@ -56,7 +54,8 @@ class BackgroundRenderComponent extends RenderComponent {
     // 4:3 screen: blue field with gray top/bottom bands.
     const texture = this._renderSystem.createCanvasTexture(
       SCREEN_TEXTURE_WIDTH, SCREEN_TEXTURE_HEIGHT,
-      (ctx) => paintThemed(ctx, (c) => this._drawScreen(c), SCREEN_PLANE_WIDTH)
+      (ctx) => this._drawScreen(ctx),
+      { worldWidth: SCREEN_PLANE_WIDTH, label: 'BackgroundScreen' },
     );
     const screen = new THREE.Mesh(
       new THREE.PlaneGeometry(SCREEN_PLANE_WIDTH, SCREEN_PLANE_HEIGHT),
@@ -67,9 +66,6 @@ class BackgroundRenderComponent extends RenderComponent {
     this.gameObject.add(screen);
     this.meshes.push(screen);
 
-    this._offTheme = onThemeChanged(() => {
-      this.updateTexture(screen, (ctx) => paintThemed(ctx, (c) => this._drawScreen(c), SCREEN_PLANE_WIDTH));
-    });
   }
 
   _drawScreen(ctx) {
@@ -87,10 +83,6 @@ class BackgroundRenderComponent extends RenderComponent {
     ctx.fillRect(0, yToV(LAYOUT.bottomBandTopY), w, h - yToV(LAYOUT.bottomBandTopY));
   }
 
-  onRemove() {
-    if (this._offTheme) { this._offTheme(); this._offTheme = null; }
-    super.onRemove();
-  }
 }
 
 export default BackgroundRenderComponent;

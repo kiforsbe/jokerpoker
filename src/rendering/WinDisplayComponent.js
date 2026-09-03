@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { RenderComponent } from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
 import GameLogger from '../utils/GameLogger.js';
-import { getTheme, paintThemed, textureFilter } from './theme.js';
 import { uiFont, fillTextCentered } from './uiStyle.js';
 import { t } from '../i18n.js';
 
@@ -33,7 +32,12 @@ class WinDisplayComponent extends RenderComponent {
     if (!this._renderSystem) return;
     
     // Create text mesh
-    const texture = this._renderSystem.createCanvasTexture(256, 64, this.drawText.bind(this));
+    const texture = this._renderSystem.createCanvasTexture(
+      256,
+      64,
+      (context) => this.drawText(context),
+      { worldWidth: WIN_WORLD_WIDTH, label: 'WinDisplay' },
+    );
     const mesh = this.createSprite(texture, WIN_WORLD_WIDTH, WIN_WORLD_HEIGHT);
     mesh.renderOrder = 10; // Ensure it renders on top of other elements
     
@@ -44,35 +48,20 @@ class WinDisplayComponent extends RenderComponent {
   }
 
   drawText(context) {
-    paintThemed(context, (ctx) => {
-      const w = ctx.canvas.width, h = ctx.canvas.height;
-      ctx.fillStyle = '#ffff00';
-      ctx.font = uiFont(Math.round(h * 0.5));
-      ctx.textAlign = 'center';
-      fillTextCentered(ctx, this.text, w / 2, h / 2);
-    }, WIN_WORLD_WIDTH);
+    const w = context.canvas.width, h = context.canvas.height;
+    context.fillStyle = '#ffff00';
+    context.font = uiFont(Math.round(h * 0.5));
+    context.textAlign = 'center';
+    fillTextCentered(context, this.text, w / 2, h / 2);
   }
 
   setText(text) {
     if (this.text === text) return;
     
     this.text = text;
-    this.updateTexture();
-  }
-
-  updateTexture() {
-    if (!this.meshes[0] || !this.meshes[0].material.map) return;
-    
-    const texture = this.meshes[0].material.map;
-    const canvas = texture.image;
-    if (!canvas) return;
-    
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    
-    this.drawText(context);
-    texture.minFilter = texture.magFilter = textureFilter();
-    texture.needsUpdate = true;
+    if (this.meshes[0]) {
+      this.updateTexture(this.meshes[0], (context) => this.drawText(context));
+    }
   }
 
   showWin(amount, onComplete = null) {

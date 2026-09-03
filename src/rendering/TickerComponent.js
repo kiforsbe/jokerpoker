@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
-import { SCREEN_ASPECT, getTheme, onThemeChanged, textureFilter } from './theme.js';
-import { PALETTE, LAYOUT, uiFont } from './uiStyle.js';
+import { SCREEN_ASPECT } from './displayProfiles.js';
+import { PALETTE, LAYOUT } from './uiStyle.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
 // Left-scrolling rules ticker on the bottom gray band, visible only while
@@ -34,6 +34,7 @@ function tickerSections() {
 
 const WORLD_WIDTH = SCREEN_ASPECT * 2; // full screen width
 const WORLD_HEIGHT = 0.12;             // fits inside the 0.17 bottom band
+const TILE_WIDTH = 2560;                // room for the longest translated rule train
 const CANVAS_HEIGHT = 48;              // px; density derives from WORLD_HEIGHT
 const SCROLL_SPEED = 0.22;             // world units per second, leftwards
 
@@ -52,7 +53,6 @@ class TickerComponent extends RenderComponent {
     this.gm = gameManager;
     this._canvas = null;
     this._texture = null;
-    this._offTheme = null;
   }
 
   get type() {
@@ -62,10 +62,15 @@ class TickerComponent extends RenderComponent {
   onRenderSystemReady() {
     if (!this._renderSystem) return;
 
-    this._canvas = document.createElement('canvas');
-    this._texture = new THREE.CanvasTexture(this._canvas);
+    this._texture = this._renderSystem.createCanvasTexture(
+      TILE_WIDTH,
+      CANVAS_HEIGHT,
+      (ctx) => this._drawTile(ctx),
+      { worldWidth: WORLD_WIDTH, label: 'Ticker' },
+    );
+    this._canvas = this._texture.image;
     this._texture.wrapS = THREE.RepeatWrapping;
-    this._drawTile();
+    this._configureTextureWindow();
 
     const geometry = new THREE.PlaneGeometry(WORLD_WIDTH, WORLD_HEIGHT);
     const material = new THREE.MeshBasicMaterial({
@@ -86,35 +91,33 @@ class TickerComponent extends RenderComponent {
     };
     this.gm.addEventListener('stateChanged', this._onState);
 
-    this._offTheme = onThemeChanged(() => this._drawTile());
-    this._offLang = onLanguageChanged(() => this._drawTile());
+    this._offLang = onLanguageChanged(() => this._redraw());
   }
 
   // Draw one tile: a train of dark pills (one rule each) plus a trailing
-  // gap, so the repeat wraps seamlessly. Canvas width follows the layout.
-  _drawTile() {
-    const canvas = this._canvas;
-    const ctx = canvas.getContext('2d');
-    const font = uiFont(28);
+  // gap, so the repeat wraps seamlessly. The rasterizer owns canvas size.
+  _drawTile(ctx) {
+    const canvas = ctx.canvas;
+    const scale = canvas.height / CANVAS_HEIGHT;
+    const font = `${32 * scale}px "VT323", monospace`;
     ctx.font = font;
     const sections = tickerSections();
     const widths = sections.map(
       segs => segs.reduce((acc, s) => acc + Math.ceil(ctx.measureText(s.t).width), 0));
-    const total = widths.reduce((acc, w) => acc + w + PILL_PAD_X * 2 + PILL_GAP, 0);
-    canvas.width = Math.max(1, total); // resizing resets ctx state
-    canvas.height = CANVAS_HEIGHT;
-    ctx.font = font;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
 
-    const pillH = CANVAS_HEIGHT - PILL_MARGIN_Y * 2;
+    const marginY = PILL_MARGIN_Y * scale;
+    const padX = PILL_PAD_X * scale;
+    const gap = PILL_GAP * scale;
+    const pillH = canvas.height - marginY * 2;
     let x = 0;
     sections.forEach((segs, i) => {
-      const pillW = widths[i] + PILL_PAD_X * 2;
+      const pillW = widths[i] + padX * 2;
       ctx.fillStyle = PILL_FILL;
       // Manual rounded path (arcTo) — ctx.roundRect is missing on
       // Safari < 16, and a throw here would abort the whole scene load.
-      const r = pillH / 2, py = PILL_MARGIN_Y;
+      const r = pillH / 2, py = marginY;
       ctx.beginPath();
       ctx.moveTo(x + r, py);
       ctx.arcTo(x + pillW, py, x + pillW, py + pillH, r);
@@ -123,34 +126,39 @@ class TickerComponent extends RenderComponent {
       ctx.arcTo(x, py, x + pillW, py, r);
       ctx.closePath();
       ctx.fill();
-      let tx = x + PILL_PAD_X;
+      let tx = x + padX;
       for (const seg of segs) {
         ctx.fillStyle = seg.c;
-        ctx.fillText(seg.t, tx, CANVAS_HEIGHT / 2 + 1);
+        ctx.fillText(seg.t, tx, canvas.height / 2 + scale);
         tx += Math.ceil(ctx.measureText(seg.t).width);
       }
-      x += pillW + PILL_GAP;
+      x += pillW + gap;
     });
+  }
 
+  _configureTextureWindow() {
+    if (!this._texture) return;
     // Show a screen-wide window into the tile at natural glyph scale.
-    const pxPerUnit = CANVAS_HEIGHT / WORLD_HEIGHT;
-    this._texture.repeat.x = (WORLD_WIDTH * pxPerUnit) / canvas.width;
-    this._texture.minFilter = this._texture.magFilter = textureFilter();
-    this._texture.generateMipmaps = false;
-    this._texture.needsUpdate = true;
+    const nativePixelsPerUnit = CANVAS_HEIGHT / WORLD_HEIGHT;
+    this._texture.repeat.x = (WORLD_WIDTH * nativePixelsPerUnit) / TILE_WIDTH;
+  }
+
+  _redraw() {
+    if (!this.meshes[0]) return;
+    this.updateTexture(this.meshes[0], (ctx) => this._drawTile(ctx));
+    this._configureTextureWindow();
   }
 
   update(deltaTime) {
     const mesh = this.meshes[0];
     if (!mesh || !mesh.visible || !this._canvas?.width) return;
     // Content moves left, so the sampling window moves right (+offset).
-    const tileWorldWidth = this._canvas.width / (CANVAS_HEIGHT / WORLD_HEIGHT);
+    const tileWorldWidth = TILE_WIDTH / (CANVAS_HEIGHT / WORLD_HEIGHT);
     this._texture.offset.x =
       (this._texture.offset.x + (SCROLL_SPEED / tileWorldWidth) * deltaTime) % 1;
   }
 
   onRemove() {
-    if (this._offTheme) { this._offTheme(); this._offTheme = null; }
     if (this._offLang) { this._offLang(); this._offLang = null; }
     if (this._onState) {
       this.gm.removeEventListener?.('stateChanged', this._onState);

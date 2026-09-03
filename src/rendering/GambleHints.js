@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
 import GameObject from '../engine/GameObject.js';
-import { getTheme, onThemeChanged, paintThemed } from './theme.js';
 import { PALETTE, uiFont, fillTextCentered } from './uiStyle.js';
 import { getUiMode, onUiModeChanged } from '../ui/uiMode.js';
 import { t, onLanguageChanged } from '../i18n.js';
@@ -24,7 +23,6 @@ class GambleHintsComponent extends RenderComponent {
   constructor(gameManager) {
     super();
     this.gm = gameManager;
-    this._offTheme = null;
     this._offMode = null;
   }
 
@@ -35,9 +33,10 @@ class GambleHintsComponent extends RenderComponent {
   onRenderSystemReady() {
     if (!this._renderSystem) return;
 
-    HINTS.forEach((hint) => {
+    HINTS.forEach((hint, index) => {
       const texture = this._renderSystem.createCanvasTexture(256, 56,
-        (ctx) => this._draw(ctx, hint));
+        (ctx) => this._draw(ctx, hint),
+        { worldWidth: HINT_WORLD_WIDTH, label: `GambleHint${index === 0 ? 'Low' : 'High'}` });
       const mesh = new THREE.Mesh(
         new THREE.PlaneGeometry(HINT_WORLD_WIDTH, HINT_WORLD_HEIGHT),
         new THREE.MeshBasicMaterial({
@@ -59,20 +58,16 @@ class GambleHintsComponent extends RenderComponent {
       this.meshes.forEach((mesh, i) =>
         this.updateTexture(mesh, (ctx) => this._draw(ctx, HINTS[i])));
     };
-    this._offTheme = onThemeChanged(redraw);
     this._offLang = onLanguageChanged(redraw);
     this._refresh();
   }
 
   _draw(ctx, hint) {
-    paintThemed(ctx, (canvasCtx) => {
-      const w = canvasCtx.canvas.width, h = canvasCtx.canvas.height;
-      canvasCtx.clearRect(0, 0, w, h);
-      canvasCtx.fillStyle = hint.color;
-      canvasCtx.font = uiFont(Math.round(h * 0.5));
-      canvasCtx.textAlign = 'center';
-      fillTextCentered(canvasCtx, hint.text(), w / 2, h / 2, 'H');
-    }, HINT_WORLD_WIDTH);
+    const w = ctx.canvas.width, h = ctx.canvas.height;
+    ctx.fillStyle = hint.color;
+    ctx.font = uiFont(Math.round(h * 0.5));
+    ctx.textAlign = 'center';
+    fillTextCentered(ctx, hint.text(), w / 2, h / 2, 'H');
   }
 
   _refresh() {
@@ -81,7 +76,6 @@ class GambleHintsComponent extends RenderComponent {
   }
 
   onRemove() {
-    if (this._offTheme) { this._offTheme(); this._offTheme = null; }
     if (this._offLang) { this._offLang(); this._offLang = null; }
     if (this._offMode) { this._offMode(); this._offMode = null; }
     if (this._onState) {
