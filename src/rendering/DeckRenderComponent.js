@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
-import { drawCardBack, CARD_WORLD_WIDTH, CARD_TEXTURE_WIDTH, CARD_TEXTURE_HEIGHT } from './CardRenderComponent.js';
+import { CARD_WORLD_WIDTH, CARD_TEXTURE_WIDTH, CARD_TEXTURE_HEIGHT } from './CardRenderComponent.js';
+import { drawCardBackArt } from './cardArt/cardArt.js';
 
 // The visible deck at the top-left of the playfield: a small face-down
 // stack that stays put between hands (dealt cards spawn on top of it and
@@ -39,7 +40,7 @@ class DeckRenderComponent extends RenderComponent {
     // One shared back texture for all stack meshes.
     const texture = this._renderSystem.createCanvasTexture(
       CARD_TEXTURE_WIDTH, CARD_TEXTURE_HEIGHT,
-      (ctx) => drawCardBack(ctx),
+      (ctx) => drawCardBackArt(ctx, { x: 0, y: 0, width: ctx.canvas.width, height: ctx.canvas.height }, this._cardArtLevel()),
       { worldWidth: DECK_WIDTH, label: 'Deck' },
     );
 
@@ -63,6 +64,10 @@ class DeckRenderComponent extends RenderComponent {
     this.halfB = makeMesh('DeckHalfB', 0, 0, 4);
     this.halfA = makeMesh('DeckHalfA', 0, 0, 4);
 
+  }
+
+  _cardArtLevel() {
+    return this._renderSystem?.activeDisplayProfile?.cardArtLevel ?? 'high-detail';
   }
 
   // Plays the split-and-merge shuffle; resolves when the stack is back

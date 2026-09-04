@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RenderComponent from './RenderComponent.js';
 import { uiFont, cardFont, fillTextCentered, PALETTE, LAYOUT } from './uiStyle.js';
+import { drawCardBackArt, drawCourtArt, drawJokerArt } from './cardArt/cardArt.js';
 import { t, onLanguageChanged } from '../i18n.js';
 
 // Card face texture resolution. Higher than the mesh needs so text/pips stay
@@ -32,14 +33,7 @@ const COLORS = {
   black: '#1a1a1a',
   faceBg: '#fbfbf3',
   faceBorder: '#9a9a9a',
-  backEdge: '#f5f5ee',
-  backPanel: '#b3271a',
-  backLattice: 'rgba(255,255,255,0.30)',
-  backOutline: '#ffffff',
-  courtPanelRed: '#fbeaea',
-  courtPanelBlack: '#eceef4',
   jokerText: '#7a2fb0',
-  jokerPanel: '#f2ecf8',
 };
 
 // All fractions below are of the canvas width (w) or height (h) unless noted.
@@ -47,87 +41,10 @@ const COLORS = {
 // Card shape.
 const CARD_CORNER_RADIUS_SCALE = 0.09;
 
-// Card back design.
-const BACK_INSET_SCALE = 0.05;
-const BACK_PANEL_RADIUS_RATIO = 0.7; // fraction of the outer corner radius
 const HAIRLINE_WIDTH_SCALE = 0.012; // shared by the back lattice and front border
-const BACK_LATTICE_MIN_WIDTH = 1;
-const BACK_LATTICE_SPACING_SCALE = 0.11;
-const BACK_OUTLINE_MIN_WIDTH = 2;
-const BACK_OUTLINE_WIDTH_SCALE = 0.02;
-
-// Card back center motif: white mini-panel with a club, per the photos.
-const BACK_MOTIF_PANEL_WIDTH_SCALE = 0.34;
-const BACK_MOTIF_PANEL_HEIGHT_SCALE = 0.30; // of card height
-const BACK_MOTIF_PANEL_RADIUS_SCALE = 0.03;
-const BACK_MOTIF_CLUB_SCALE = 0.22;
 
 // Card front border.
 const FRONT_BORDER_MIN_WIDTH = 1.5;
-
-// Draws the card back (warm white edge, red lattice panel, club motif)
-// filling the given context's canvas. Shared by face-down cards and the
-// deck stack (DeckRenderComponent).
-export function drawCardBack(ctx) {
-  const w = ctx.canvas.width, h = ctx.canvas.height;
-  const radius = w * CARD_CORNER_RADIUS_SCALE;
-  const roundRect = (x, y, rw, rh, r) => {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + rw, y, x + rw, y + rh, r);
-    ctx.arcTo(x + rw, y + rh, x, y + rh, r);
-    ctx.arcTo(x, y + rh, x, y, r);
-    ctx.arcTo(x, y, x + rw, y, r);
-    ctx.closePath();
-  };
-
-  // Outer edge: the full card, off-white.
-  roundRect(0, 0, w, h, radius);
-  ctx.fillStyle = COLORS.backEdge;
-  ctx.fill();
-
-  // Inner panel: red rect inset from the edge.
-  const inset = w * BACK_INSET_SCALE;
-  const ir = radius * BACK_PANEL_RADIUS_RATIO;
-  roundRect(inset, inset, w - inset * 2, h - inset * 2, ir);
-  ctx.fillStyle = COLORS.backPanel;
-  ctx.fill();
-
-  // Diagonal crosshatch lattice, clipped to the inner panel so the
-  // lines don't spill onto the white edge.
-  ctx.save();
-  roundRect(inset, inset, w - inset * 2, h - inset * 2, ir);
-  ctx.clip();
-  ctx.strokeStyle = COLORS.backLattice;
-  ctx.lineWidth = Math.max(BACK_LATTICE_MIN_WIDTH, w * HAIRLINE_WIDTH_SCALE);
-  const step = w * BACK_LATTICE_SPACING_SCALE;
-  for (let d = -h; d < w + h; d += step) {
-    ctx.beginPath(); ctx.moveTo(d, 0); ctx.lineTo(d + h, h); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(d, h); ctx.lineTo(d + h, 0); ctx.stroke();
-  }
-  ctx.restore();
-
-  // Central white mini-panel with a club motif (all reference photos).
-  const pw = w * BACK_MOTIF_PANEL_WIDTH_SCALE;
-  const ph = h * BACK_MOTIF_PANEL_HEIGHT_SCALE;
-  roundRect((w - pw) / 2, (h - ph) / 2, pw, ph, w * BACK_MOTIF_PANEL_RADIUS_SCALE);
-  ctx.fillStyle = COLORS.backEdge;
-  ctx.fill();
-  ctx.strokeStyle = COLORS.backPanel;
-  ctx.lineWidth = Math.max(BACK_LATTICE_MIN_WIDTH, w * HAIRLINE_WIDTH_SCALE);
-  ctx.stroke();
-  ctx.fillStyle = COLORS.backPanel;
-  ctx.font = `${Math.round(w * BACK_MOTIF_CLUB_SCALE)}px Arial, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('♣', w / 2, h / 2);
-
-  // White outline retracing the inner panel, on top of the lattice.
-  roundRect(inset, inset, w - inset * 2, h - inset * 2, ir);
-  ctx.strokeStyle = COLORS.backOutline;
-  ctx.lineWidth = Math.max(BACK_OUTLINE_MIN_WIDTH, w * BACK_OUTLINE_WIDTH_SCALE);
-  ctx.stroke();
-}
 
 // Corner index (rank + suit tucked in the corner).
 const CORNER_INDEX_X_SCALE = 1 / 7; // centered in columns 1-2 of a 7-column model
@@ -137,19 +54,6 @@ const CORNER_INDEX_SUIT_Y_SCALE = 0.30;
 
 // Ace: a single modest center pip, per the photos.
 const ACE_SYMBOL_SCALE = 0.32;
-
-// Face card (J/Q/K) court panel.
-const COURT_PANEL_X_SCALE = 0.27;
-const COURT_PANEL_Y_SCALE = 0.20;
-const COURT_PANEL_WIDTH_SCALE = 0.46;
-const COURT_PANEL_HEIGHT_SCALE = 0.60;
-const COURT_PANEL_RADIUS_SCALE = 0.04;
-const COURT_PANEL_BORDER_MIN_WIDTH = 2;
-const COURT_PANEL_BORDER_SCALE = 0.016;
-const COURT_LETTER_SCALE = 0.42;
-const COURT_LETTER_Y_SCALE = 0.42;
-const COURT_SUIT_SCALE = 0.46;
-const COURT_SUIT_Y_SCALE = 0.67;
 
 class CardRenderComponent extends RenderComponent {
   constructor() {
@@ -251,8 +155,8 @@ class CardRenderComponent extends RenderComponent {
     });
   }
 
-  _usesPixelArt() {
-    return this._renderSystem?.activeDisplayProfile?.cardArtLevel !== 'high-detail';
+  _cardArtLevel() {
+    return this._renderSystem?.activeDisplayProfile?.cardArtLevel ?? 'high-detail';
   }
 
   // Cyan "hold" box with a double blue border, per the reference photos.
@@ -311,7 +215,7 @@ class CardRenderComponent extends RenderComponent {
     };
 
     if (this.isFlipped) {
-      drawCardBack(ctx);
+      drawCardBackArt(ctx, { x: 0, y: 0, width: w, height: h }, this._cardArtLevel());
       return;
     }
 
@@ -352,7 +256,7 @@ class CardRenderComponent extends RenderComponent {
       // (retro) inks ~35% smaller than bold Arial (hires) at equal px,
       // so the retro size compensates.
       const name = t('joker');
-      const letterFont = Math.round(w * (this._usesPixelArt() ? 0.24 : 0.18));
+      const letterFont = Math.round(w * 0.18);
       // Generous top margin; the column then runs well down the card edge
       // (the mirrored one occupies the opposite edge, so they can't meet).
       const topY = h * 0.10;
@@ -392,13 +296,9 @@ class CardRenderComponent extends RenderComponent {
     drawIndex();
     ctx.restore();
 
-    // ---- Joker: a jester figure, pixel-art in retro, vector in hires ----
+    // ---- Joker illustration varies only by the generic art fidelity. ----
     if (value === 'Joker') {
-      if (this._usesPixelArt()) {
-        this.drawPixelJoker(ctx, w, h);
-      } else {
-        this.drawVectorJoker(ctx, w, h);
-      }
+      drawJokerArt(ctx, { x: 0, y: 0, width: w, height: h }, this._cardArtLevel());
       return;
     }
 
@@ -423,280 +323,9 @@ class CardRenderComponent extends RenderComponent {
         }
       }
     } else {
-      if (this._usesPixelArt()) {
-        // ---- Face cards J / Q / K: mirrored pixel-art figure (retro) ----
-        this.drawPixelCourt(ctx, w, h, value);
-      } else {
-        // ---- Face cards J / Q / K: framed court panel (hires) ----
-        // Panel: rounded rect centered on the card, filled with a tinted
-        // background and outlined in the suit color.
-        const ix = w * COURT_PANEL_X_SCALE, iy = h * COURT_PANEL_Y_SCALE;
-        const iw = w * COURT_PANEL_WIDTH_SCALE, ih = h * COURT_PANEL_HEIGHT_SCALE;
-        roundRect(ix, iy, iw, ih, w * COURT_PANEL_RADIUS_SCALE);
-        ctx.fillStyle = red ? COLORS.courtPanelRed : COLORS.courtPanelBlack;
-        ctx.fill();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = Math.max(COURT_PANEL_BORDER_MIN_WIDTH, w * COURT_PANEL_BORDER_SCALE);
-        ctx.stroke();
-        // Big serif letter (J/Q/K) upper-middle of the panel...
-        ctx.fillStyle = color;
-        ctx.font = `bold ${Math.round(w * COURT_LETTER_SCALE)}px Georgia, "Times New Roman", serif`;
-        ctx.fillText(value, w / 2, h * COURT_LETTER_Y_SCALE);
-        // ...with the suit symbol underneath it.
-        ctx.font = `${Math.round(w * COURT_SUIT_SCALE)}px Arial, sans-serif`;
-        ctx.fillText(sym, w / 2, h * COURT_SUIT_Y_SCALE);
-      }
-    }
-  }
-
-  // Procedural pixel-art court figures for retro mode. Each grid is the TOP
-  // half of the figure (15 columns); the bottom half is the mirror image, as
-  // on real court cards. This is an approximation of the machine's art.
-  static get COURT_PIXELS() {
-    // Palette keys: Y gold, B blue, R red, S skin, K black, W white, '.' empty.
-    return {
-      K: [ // crown
-        '...Y.Y.Y.Y.Y...',
-        '...YYYYYYYYY...',
-        '...SSSSSSSSS...',
-        '...SKSSSSSKS...',
-        '...SSSSSSSSS...',
-        '....SSKKKSS....',
-        '..RRRRRRRRRRR..',
-        '.RRRBBBBBBBRRR.',
-        '.RRBBBYBYBBBRR.',
-        '.RRBBYBBBYBBRR.',
-        '.RRBBBYBYBBBRR.',
-        '.RRBBBBBBBBBRR.',
-        'YYRRBBBBBBBRRYY',
-        'YYRRRRRRRRRRRYY',
-      ],
-      Q: [ // hair and small crown
-        '.....YYYYY.....',
-        '..KKKYYYYYKKK..',
-        '..KKSSSSSSSKK..',
-        '..KKSKSSSKSKK..',
-        '..KKSSSSSSSKK..',
-        '...KSSKKKSSK...',
-        '..BBBBBBBBBBB..',
-        '.BBBRRRRRRRBBB.',
-        '.BBRRYRYRYRRBB.',
-        '.BBRRRRRRRRRBB.',
-        '.BBRRYRRRYRRBB.',
-        '.BBRRRRRRRRRBB.',
-        'WWBBRRRRRRRBBWW',
-        'WWBBBBBBBBBBBWW',
-      ],
-      J: [ // cap
-        '....RRRRRRR....',
-        '...RRYYYYYRR...',
-        '...SSSSSSSSS...',
-        '...SKSSSSSKS...',
-        '...SSSSSSSSS...',
-        '....SSKKKSS....',
-        '..YYYYYYYYYYY..',
-        '.YYYBBBBBBBYYY.',
-        '.YYBBRBRBRBBYY.',
-        '.YYBBBBBBBBBYY.',
-        '.YYBBRBBBRBBYY.',
-        '.YYBBBBBBBBBYY.',
-        'BBYYBBBBBBBYYBB',
-        'BBYYYYYYYYYYYBB',
-      ],
-    };
-  }
-
-  drawPixelCourt(ctx, w, h, value) {
-    const PALETTE_MAP = {
-      Y: '#e8c040', B: '#2848c0', R: '#c81414', S: '#f0c8a0',
-      K: '#1a1a1a', W: '#ffffff',
-    };
-    const grid = CardRenderComponent.COURT_PIXELS[value];
-    if (!grid) return;
-    const cols = 15;
-    const panelX = w * 0.16, panelW = w * 0.68;
-    const panelY = h * 0.18, panelH = h * 0.64;
-    const cell = panelW / cols;
-    const rows = grid.length;
-    // Rows fill the top half of the panel; the mirror fills the bottom half.
-    const rowH = (panelH / 2) / rows;
-    const drawHalf = () => {
-      for (let r = 0; r < rows; r++) {
-        const line = grid[r];
-        for (let c = 0; c < cols; c++) {
-          const color = PALETTE_MAP[line[c]];
-          if (!color) continue;
-          // +/- 0.5px overdraw hides seams between cells after the blit.
-          ctx.fillStyle = color;
-          ctx.fillRect(panelX + c * cell - 0.5, r * rowH - 0.5, cell + 1, rowH + 1);
-        }
-      }
-    };
-    // Top half.
-    ctx.save();
-    ctx.translate(0, panelY);
-    drawHalf();
-    ctx.restore();
-    // Bottom half: mirrored vertically around the panel center.
-    ctx.save();
-    ctx.translate(0, panelY + panelH);
-    ctx.scale(1, -1);
-    drawHalf();
-    ctx.restore();
-    // Center divider, like real mirrored courts.
-    ctx.strokeStyle = '#1a1a1a';
-    ctx.lineWidth = Math.max(1, w * 0.006);
-    ctx.beginPath();
-    ctx.moveTo(panelX, panelY + panelH / 2);
-    ctx.lineTo(panelX + panelW, panelY + panelH / 2);
-    ctx.stroke();
-  }
-
-  // Full-height (unmirrored) pixel jester: three-pointed cap with bells,
-  // face, zigzag ruff collar, motley torso with diamond pattern, belt, and
-  // a belled hem. Same 15-column grid technique as the court figures.
-  static get JOKER_PIXELS() {
-    // Palette keys: Y gold, R red, P purple, S skin, K black, '.' empty.
-    return [
-      '.......Y.......',
-      '.......P.......',
-      '.Y.....P.....Y.',
-      '.R....PPP....R.',
-      '.RR...PPP...RR.',
-      '.RRR..PPP..RRR.',
-      '..RRR.PPP.RRR..',
-      '..RRRRPPPRRRR..',
-      '...RRRPPPRRR...',
-      '...SSSSSSSSS...',
-      '...SKSSSSSKS...',
-      '...SSSSSSSSS...',
-      '....SSKKKSS....',
-      '..YRYRYRYRYRY..',
-      '.PPPPPPPPPPPPP.',
-      '.PPYPPPYPPPYPP.',
-      '.PYYYPYYYPYYYP.',
-      '.PPYPPPYPPPYPP.',
-      '.PPPPPPPPPPPPP.',
-      '.PPYPPPYPPPYPP.',
-      '.PYYYPYYYPYYYP.',
-      '.PPYPPPYPPPYPP.',
-      '.PPPPPPPPPPPPP.',
-      '.KKKKKKKKKKKKK.',
-      '.PPPPPPPPPPPPP.',
-      '.PPYPPPYPPPYPP.',
-      '.PYPYPYPYPYPYP.',
-      '.Y.Y.Y.Y.Y.Y.Y.',
-    ];
-  }
-
-  drawPixelJoker(ctx, w, h) {
-    const PALETTE_MAP = {
-      Y: '#e8c040', R: '#c81414', P: '#7a2fb0', S: '#f0c8a0', K: '#1a1a1a',
-    };
-    const grid = CardRenderComponent.JOKER_PIXELS;
-    const cols = 15;
-    // Slimmer and more centered than the court panel so the enlarged
-    // vertical JOKER corner columns stay clear; the grid runs top-to-
-    // bottom unmirrored — a joker isn't a mirrored figure on real decks.
-    const panelX = w * 0.21, panelW = w * 0.58;
-    const panelY = h * 0.18, panelH = h * 0.64;
-    const cell = panelW / cols;
-    const rowH = panelH / grid.length;
-    for (let r = 0; r < grid.length; r++) {
-      const line = grid[r];
-      for (let c = 0; c < cols; c++) {
-        const color = PALETTE_MAP[line[c]];
-        if (!color) continue;
-        // +/- 0.5px overdraw hides seams between cells after the blit.
-        ctx.fillStyle = color;
-        ctx.fillRect(panelX + c * cell - 0.5, panelY + r * rowH - 0.5, cell + 1, rowH + 1);
-      }
-    }
-  }
-
-  // Vector jester for hires: court-style tinted panel holding a cap with
-  // three belled points, a round face, a zigzag ruff, and a JOKER caption.
-  drawVectorJoker(ctx, w, h) {
-    const roundRect = (x, y, rw, rh, r) => {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.arcTo(x + rw, y, x + rw, y + rh, r);
-      ctx.arcTo(x + rw, y + rh, x, y + rh, r);
-      ctx.arcTo(x, y + rh, x, y, r);
-      ctx.arcTo(x, y, x + rw, y, r);
-      ctx.closePath();
-    };
-
-    // Panel, matching the court cards' frame but tinted for the joker.
-    const ix = w * COURT_PANEL_X_SCALE, iy = h * COURT_PANEL_Y_SCALE;
-    const iw = w * COURT_PANEL_WIDTH_SCALE, ih = h * COURT_PANEL_HEIGHT_SCALE;
-    roundRect(ix, iy, iw, ih, w * COURT_PANEL_RADIUS_SCALE);
-    ctx.fillStyle = COLORS.jokerPanel;
-    ctx.fill();
-    ctx.strokeStyle = COLORS.jokerText;
-    ctx.lineWidth = Math.max(COURT_PANEL_BORDER_MIN_WIDTH, w * COURT_PANEL_BORDER_SCALE);
-    ctx.stroke();
-
-    const fx = w / 2;                 // face center x
-    const fr = iw * 0.28;             // face radius
-    const fy = iy + ih * 0.52;        // face center y (balanced, no caption)
-    const capBase = fy - fr * 0.55;
-
-    // Cap: two red side points and a taller purple middle point.
-    const point = (x0, x1, tipX, tipY, color) => {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(x0, capBase);
-      ctx.lineTo(tipX, tipY);
-      ctx.lineTo(x1, capBase);
-      ctx.closePath();
-      ctx.fill();
-    };
-    point(fx - fr, fx - fr * 0.1, fx - fr * 1.45, capBase - fr * 1.25, COLORS.red);
-    point(fx + fr * 0.1, fx + fr, fx + fr * 1.45, capBase - fr * 1.25, COLORS.red);
-    point(fx - fr * 0.65, fx + fr * 0.65, fx, capBase - fr * 1.95, COLORS.jokerText);
-    // Bells on the three tips.
-    ctx.fillStyle = '#e8c040';
-    for (const [bx, by] of [
-      [fx - fr * 1.45, capBase - fr * 1.25],
-      [fx + fr * 1.45, capBase - fr * 1.25],
-      [fx, capBase - fr * 1.95],
-    ]) {
-      ctx.beginPath();
-      ctx.arc(bx, by, fr * 0.18, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Face: skin disc, dot eyes, smile.
-    ctx.fillStyle = '#f0c8a0';
-    ctx.beginPath();
-    ctx.arc(fx, fy, fr, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = COLORS.black;
-    for (const ex of [fx - fr * 0.38, fx + fr * 0.38]) {
-      ctx.beginPath();
-      ctx.arc(ex, fy - fr * 0.15, fr * 0.09, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.strokeStyle = COLORS.black;
-    ctx.lineWidth = Math.max(1.5, w * 0.008);
-    ctx.beginPath();
-    ctx.arc(fx, fy + fr * 0.15, fr * 0.5, Math.PI * 0.15, Math.PI * 0.85);
-    ctx.stroke();
-
-    // Zigzag ruff collar under the face, alternating gold and red. No
-    // caption — the vertical corner columns already name the card.
-    const ruffY = fy + fr * 1.0;
-    const teeth = 6, ruffW = fr * 2.2, tooth = ruffW / teeth;
-    for (let i = 0; i < teeth; i++) {
-      const x0 = fx - ruffW / 2 + i * tooth;
-      ctx.fillStyle = i % 2 ? COLORS.red : '#e8c040';
-      ctx.beginPath();
-      ctx.moveTo(x0, ruffY);
-      ctx.lineTo(x0 + tooth / 2, ruffY + fr * 0.55);
-      ctx.lineTo(x0 + tooth, ruffY);
-      ctx.closePath();
-      ctx.fill();
+      drawCourtArt(ctx, { x: 0, y: 0, width: w, height: h }, {
+        rank: value, suitColor: color, suitSymbol: sym,
+      }, this._cardArtLevel());
     }
   }
 
