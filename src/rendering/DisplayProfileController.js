@@ -12,6 +12,14 @@ function profileForCanonicalId(id) {
   return DISPLAY_PROFILE_ORDER.includes(id) ? getDisplayProfile(id) : null;
 }
 
+function persistProfile(storage, id) {
+  try {
+    storage?.setItem(PROFILE_KEY, id);
+  } catch {
+    // Storage can be unavailable in private/restricted browser contexts.
+  }
+}
+
 export class DisplayProfileController {
   constructor({ storage = globalThis.localStorage, onRollbackFailure = () => {} } = {}) {
     this.storage = storage;
@@ -20,13 +28,23 @@ export class DisplayProfileController {
     this.configured = false;
     this.listeners = new Set();
 
-    const storedId = storage.getItem(PROFILE_KEY);
+    let storedId = null;
+    let legacyId;
+    try {
+      storedId = storage?.getItem(PROFILE_KEY) ?? null;
+      if (storedId === null) {
+        const legacyStoredId = storage?.getItem(LEGACY_KEY) ?? null;
+        legacyId = Object.hasOwn(LEGACY_PROFILE_IDS, legacyStoredId)
+          ? LEGACY_PROFILE_IDS[legacyStoredId]
+          : undefined;
+      }
+    } catch {
+      storedId = null;
+      legacyId = undefined;
+    }
+
     if (storedId === null) {
-      const legacyStoredId = storage.getItem(LEGACY_KEY);
-      const legacyId = Object.hasOwn(LEGACY_PROFILE_IDS, legacyStoredId)
-        ? LEGACY_PROFILE_IDS[legacyStoredId]
-        : undefined;
-      if (legacyId) storage.setItem(PROFILE_KEY, legacyId);
+      if (legacyId) persistProfile(storage, legacyId);
       this.activeProfile = profileForCanonicalId(legacyId) ?? profileForCanonicalId(DEFAULT_PROFILE_ID);
     } else {
       this.activeProfile = profileForCanonicalId(storedId) ?? profileForCanonicalId(DEFAULT_PROFILE_ID);
@@ -73,7 +91,7 @@ export class DisplayProfileController {
     }
 
     this.activeProfile = nextProfile;
-    this.storage.setItem(PROFILE_KEY, id);
+    persistProfile(this.storage, id);
     this.listeners.forEach((listener) => listener(nextProfile));
     return this.activeProfile;
   }

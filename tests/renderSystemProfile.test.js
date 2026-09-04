@@ -7,6 +7,7 @@ import Scene from '../src/engine/Scene.js';
 import { TextureRasterizer } from '../src/rendering/TextureRasterizer.js';
 import { DISPLAY_PROFILES, SCREEN_ASPECT } from '../src/rendering/displayProfiles.js';
 import { ButtonComponent, TextDisplayComponent } from '../src/rendering/UIComponent.js';
+import { TickerComponent } from '../src/rendering/TickerComponent.js';
 import { CRTShader } from '../src/rendering/shaders/CRTShader.js';
 
 globalThis.window ??= {};
@@ -352,6 +353,57 @@ test('button and text display rasterize text at their rendered world widths', ()
     display.setText('NEXT');
     assert.deepEqual(displayTexture.image.draws.at(-1), ['NEXT', 120, 30]);
     assert.equal(canvases.length, 2);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('ticker rasterizes its full repeating tile at each profile density', () => {
+  const originalDocument = globalThis.document;
+  const context = {
+    canvas: null,
+    clearRect() {},
+    beginPath() {},
+    moveTo() {},
+    arcTo() {},
+    closePath() {},
+    fill() {},
+    fillText() {},
+    measureText(text) { return { width: text.length * 10 }; },
+  };
+  const canvas = { width: 0, height: 0, getContext: () => context };
+  context.canvas = canvas;
+  globalThis.document = { createElement: () => canvas };
+
+  try {
+    const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties);
+    const system = new RenderSystem({ systems: new Map() }, {
+      getDisplayProfile: () => DISPLAY_PROFILES.eighties,
+      textureRasterizer: rasterizer,
+    });
+    const gameManager = {
+      state: 'idle',
+      addEventListener() {},
+      removeEventListener() {},
+    };
+    const ticker = new TickerComponent(gameManager);
+    ticker._renderSystem = system;
+    ticker.gameObject = new THREE.Object3D();
+    ticker.onRenderSystemReady();
+
+    const handle = ticker._texture.userData.rasterHandle;
+    assert.equal(handle.worldWidth, 6.4);
+    for (const [profile, expectedWidth, expectedDensity] of [
+      [DISPLAY_PROFILES.eighties, 1536, 240],
+      [DISPLAY_PROFILES.nineties, 1920, 300],
+      [DISPLAY_PROFILES.early2000s, 2458, 384],
+    ]) {
+      rasterizer.applyDisplayProfile(profile);
+      assert.equal(canvas.width, expectedWidth, profile.id);
+      assert.ok(Math.abs(canvas.width / handle.worldWidth - expectedDensity) < 0.1, profile.id);
+    }
+
+    ticker.onRemove();
   } finally {
     globalThis.document = originalDocument;
   }

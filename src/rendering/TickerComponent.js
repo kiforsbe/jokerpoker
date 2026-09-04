@@ -36,6 +36,7 @@ const WORLD_WIDTH = SCREEN_ASPECT * 2; // full screen width
 const WORLD_HEIGHT = 0.12;             // fits inside the 0.17 bottom band
 const TILE_WIDTH = 2560;                // room for the longest translated rule train
 const CANVAS_HEIGHT = 48;              // px; density derives from WORLD_HEIGHT
+const TILE_WORLD_WIDTH = TILE_WIDTH / (CANVAS_HEIGHT / WORLD_HEIGHT);
 const SCROLL_SPEED = 0.22;             // world units per second, leftwards
 
 // Pill styling (dark theme so the rules pop off the light gray band).
@@ -66,7 +67,7 @@ class TickerComponent extends RenderComponent {
       TILE_WIDTH,
       CANVAS_HEIGHT,
       (ctx) => this._drawTile(ctx),
-      { worldWidth: WORLD_WIDTH, label: 'Ticker' },
+      { worldWidth: TILE_WORLD_WIDTH, label: 'Ticker' },
     );
     this._canvas = this._texture.image;
     this._texture.wrapS = THREE.RepeatWrapping;
@@ -153,9 +154,8 @@ class TickerComponent extends RenderComponent {
     const mesh = this.meshes[0];
     if (!mesh || !mesh.visible || !this._canvas?.width) return;
     // Content moves left, so the sampling window moves right (+offset).
-    const tileWorldWidth = TILE_WIDTH / (CANVAS_HEIGHT / WORLD_HEIGHT);
     this._texture.offset.x =
-      (this._texture.offset.x + (SCROLL_SPEED / tileWorldWidth) * deltaTime) % 1;
+      (this._texture.offset.x + (SCROLL_SPEED / TILE_WORLD_WIDTH) * deltaTime) % 1;
   }
 
   onRemove() {

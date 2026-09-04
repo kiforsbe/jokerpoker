@@ -147,3 +147,42 @@ test('does not migrate inherited legacy property names', () => {
   assert.equal(controller.getDisplayProfile().label, '1980s');
   assert.deepEqual(storage.writes, []);
 });
+
+test('defaults to eighties when persisted profile reads are unavailable', () => {
+  const storageError = new Error('storage unavailable');
+  const storage = {
+    getItem() { throw storageError; },
+    setItem() { throw storageError; },
+  };
+
+  let controller;
+  assert.doesNotThrow(() => { controller = new DisplayProfileController({ storage }); });
+  assert.equal(controller.getDisplayProfile().label, '1980s');
+});
+
+test('uses a migrated legacy profile even when its persistence write is unavailable', () => {
+  const storage = createStorage({ [LEGACY_KEY]: 'medium' });
+  storage.setItem = () => { throw new Error('storage unavailable'); };
+
+  const controller = new DisplayProfileController({ storage });
+
+  assert.equal(controller.getDisplayProfile().label, '1990s');
+});
+
+test('completes a profile switch consistently when persistence is unavailable', () => {
+  const storage = createStorage();
+  storage.setItem = () => { throw new Error('storage unavailable'); };
+  const log = [];
+  const controller = new DisplayProfileController({ storage });
+  controller.configureAppliers([
+    createApplier(log, 'first'),
+    createApplier(log, 'second'),
+  ]);
+  controller.onDisplayProfileChanged((profile) => log.push(`listener:${profile.label}`));
+
+  const result = controller.setDisplayProfile('nineties');
+
+  assert.equal(result.label, '1990s');
+  assert.equal(controller.getDisplayProfile().label, '1990s');
+  assert.deepEqual(log, ['first:1990s', 'second:1990s', 'listener:1990s']);
+});
