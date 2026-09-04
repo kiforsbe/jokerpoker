@@ -5,6 +5,7 @@ export function quantizeImageData(ctx, width, height, paletteSteps) {
     image.data[index] = Math.round(image.data[index] / bucket) * bucket;
     image.data[index + 1] = Math.round(image.data[index + 1] / bucket) * bucket;
     image.data[index + 2] = Math.round(image.data[index + 2] / bucket) * bucket;
+    image.data[index + 3] = image.data[index + 3] < 128 ? 0 : 255;
   }
   ctx.putImageData(image, 0, 0);
 }

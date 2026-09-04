@@ -12,12 +12,14 @@ import { CRTShader } from '../src/rendering/shaders/CRTShader.js';
 
 globalThis.window ??= {};
 
-test('CRT shader uses logical resolution for scanline density and pixel RGB shift', () => {
+test('CRT shader uses logical resolution, interpolated noise, and pixel RGB shift', () => {
   assert.ok(CRTShader.uniforms.scanlineDensity);
   assert.ok(CRTShader.uniforms.rgbShiftPixels);
   assert.equal(CRTShader.uniforms.scanlineCount, undefined);
   assert.match(CRTShader.fragmentShader, /resolution\.y\s*\*\s*scanlineDensity/);
   assert.match(CRTShader.fragmentShader, /rgbShiftPixels\s*\/\s*max\(resolution\.x/);
+  assert.match(CRTShader.fragmentShader, /float\s+smoothNoise\s*\(/);
+  assert.match(CRTShader.fragmentShader, /smoothNoise\(uv\s*\*\s*resolution/);
   assert.doesNotMatch(CRTShader.fragmentShader, /rgbShift\([^\n]+0\.002/);
 });
 
@@ -83,7 +85,7 @@ test('applies exact profile size, DPR 1, CSS fit, filters, composer, and uniform
   assert.equal(system.crtPass.uniforms.scanlineDensity.value, 0.6);
   assert.equal(system.crtPass.uniforms.scanlineIntensity.value, 0.08);
   assert.equal(system.crtPass.uniforms.rgbShiftPixels.value, 0.6);
-  assert.ok(calls.some(call => call.join(':') === 'curvature:7:7'));
+  assert.ok(calls.some(call => call.join(':') === 'curvature:24:24'));
 });
 
 test('CRT presets set every generic uniform and fully reset disabled early-2000s output', () => {

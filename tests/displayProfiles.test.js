@@ -54,7 +54,7 @@ test('contains sampling, card-art, and CRT settings for each era', () => {
   assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.noise), [0.025, 0.008, 0]);
   assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.flicker), [0.012, 0.003, 0]);
   assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.vignetteIntensity), [0.18, 0.08, 0]);
-  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.curvature), [{ x: 3.5, y: 3.5 }, { x: 7, y: 7 }, { x: 1000, y: 1000 }]);
+  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.curvature), [{ x: 12, y: 12 }, { x: 24, y: 24 }, { x: 1000, y: 1000 }]);
   const eighties = DISPLAY_PROFILES.eighties.postProcessing.crt;
   const nineties = DISPLAY_PROFILES.nineties.postProcessing.crt;
   for (const key of ['scanlineIntensity', 'rgbShiftPixels', 'noise', 'flicker', 'vignetteIntensity']) {

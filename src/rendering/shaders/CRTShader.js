@@ -41,6 +41,17 @@ const CRTShader = {
       return fract(cos(dot(p, K1)) * 12345.6789);
     }
 
+    float smoothNoise(vec2 p) {
+      vec2 cell = floor(p);
+      vec2 fraction = fract(p);
+      fraction = fraction * fraction * (3.0 - 2.0 * fraction);
+      float a = random(cell);
+      float b = random(cell + vec2(1.0, 0.0));
+      float c = random(cell + vec2(0.0, 1.0));
+      float d = random(cell + vec2(1.0, 1.0));
+      return mix(mix(a, b, fraction.x), mix(c, d, fraction.x), fraction.y);
+    }
+
     vec2 curveRemapUV(vec2 uv) {
       uv = uv * 2.0 - 1.0;
       vec2 offset = abs(uv.yx) / curvature;
@@ -82,7 +93,7 @@ const CRTShader = {
       col = scanlines(uv, col);
       
       // Add noise
-      float noiseVal = random(uv + time) * noise;
+      float noiseVal = (smoothNoise(uv * resolution * 0.08 + vec2(time * 0.5, 0.0)) - 0.5) * noise;
       col += noiseVal;
       
       // Add screen flicker

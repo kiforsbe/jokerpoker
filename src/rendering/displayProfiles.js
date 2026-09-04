@@ -31,7 +31,7 @@ const profileFixtures = {
     postProcessing: { crt: {
       enabled: true, scanlineDensity: 0.50, scanlineIntensity: 0.16,
       rgbShiftPixels: 1.50, noise: 0.025, flicker: 0.012,
-      vignetteIntensity: 0.18, curvature: { x: 3.5, y: 3.5 },
+      vignetteIntensity: 0.18, curvature: { x: 12, y: 12 },
     } },
   },
   nineties: {
@@ -41,7 +41,7 @@ const profileFixtures = {
     postProcessing: { crt: {
       enabled: true, scanlineDensity: 0.60, scanlineIntensity: 0.08,
       rgbShiftPixels: 0.60, noise: 0.008, flicker: 0.003,
-      vignetteIntensity: 0.08, curvature: { x: 7, y: 7 },
+      vignetteIntensity: 0.08, curvature: { x: 24, y: 24 },
     } },
   },
   early2000s: {

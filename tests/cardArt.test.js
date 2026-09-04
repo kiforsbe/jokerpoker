@@ -8,6 +8,7 @@ import {
   drawJokerArt,
   getArtRaster,
 } from '../src/rendering/cardArt/cardArt.js';
+import { quantizeImageData } from '../src/rendering/cardArt/pixelateIllustration.js';
 
 test('pixel art rasters increase fidelity and high detail stays vector', () => {
   assert.deepEqual(ART_RASTERS['coarse-pixel'], {
@@ -75,6 +76,23 @@ test('joker dispatch uses distinct deterministic rasters for both pixel levels',
     ['pixelate', { width: 60, height: 112, paletteSteps: 16 }],
     ['master'],
   ]);
+});
+
+test('pixel art rasterization removes partial-alpha vector edges', () => {
+  const image = {
+    data: new Uint8ClampedArray([
+      117, 53, 211, 127,
+      117, 53, 211, 128,
+    ]),
+  };
+  const context = {
+    getImageData: () => image,
+    putImageData: () => {},
+  };
+
+  quantizeImageData(context, 2, 1, 8);
+
+  assert.deepEqual([...image.data], [109, 36, 219, 0, 109, 36, 219, 255]);
 });
 
 test('card component resolves generic art fidelity from the active profile', () => {
