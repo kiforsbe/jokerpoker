@@ -160,6 +160,23 @@ test('defaults to eighties when persisted profile reads are unavailable', () => 
   assert.equal(controller.getDisplayProfile().label, '1980s');
 });
 
+test('defaults to eighties when the global localStorage getter is unavailable', () => {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    get() { throw new Error('global storage unavailable'); },
+  });
+
+  try {
+    let controller;
+    assert.doesNotThrow(() => { controller = new DisplayProfileController(); });
+    assert.equal(controller.getDisplayProfile().label, '1980s');
+  } finally {
+    if (originalDescriptor) Object.defineProperty(globalThis, 'localStorage', originalDescriptor);
+    else delete globalThis.localStorage;
+  }
+});
+
 test('uses a migrated legacy profile even when its persistence write is unavailable', () => {
   const storage = createStorage({ [LEGACY_KEY]: 'medium' });
   storage.setItem = () => { throw new Error('storage unavailable'); };

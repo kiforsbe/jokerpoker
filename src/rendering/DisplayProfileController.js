@@ -12,6 +12,15 @@ function profileForCanonicalId(id) {
   return DISPLAY_PROFILE_ORDER.includes(id) ? getDisplayProfile(id) : null;
 }
 
+function resolveStorage(storage) {
+  if (storage !== undefined) return storage;
+  try {
+    return globalThis.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 function persistProfile(storage, id) {
   try {
     storage?.setItem(PROFILE_KEY, id);
@@ -21,8 +30,9 @@ function persistProfile(storage, id) {
 }
 
 export class DisplayProfileController {
-  constructor({ storage = globalThis.localStorage, onRollbackFailure = () => {} } = {}) {
-    this.storage = storage;
+  constructor({ storage, onRollbackFailure = () => {} } = {}) {
+    const resolvedStorage = resolveStorage(storage);
+    this.storage = resolvedStorage;
     this.onRollbackFailure = onRollbackFailure;
     this.appliers = [];
     this.configured = false;
@@ -31,9 +41,9 @@ export class DisplayProfileController {
     let storedId = null;
     let legacyId;
     try {
-      storedId = storage?.getItem(PROFILE_KEY) ?? null;
+      storedId = resolvedStorage?.getItem(PROFILE_KEY) ?? null;
       if (storedId === null) {
-        const legacyStoredId = storage?.getItem(LEGACY_KEY) ?? null;
+        const legacyStoredId = resolvedStorage?.getItem(LEGACY_KEY) ?? null;
         legacyId = Object.hasOwn(LEGACY_PROFILE_IDS, legacyStoredId)
           ? LEGACY_PROFILE_IDS[legacyStoredId]
           : undefined;
@@ -44,7 +54,7 @@ export class DisplayProfileController {
     }
 
     if (storedId === null) {
-      if (legacyId) persistProfile(storage, legacyId);
+      if (legacyId) persistProfile(resolvedStorage, legacyId);
       this.activeProfile = profileForCanonicalId(legacyId) ?? profileForCanonicalId(DEFAULT_PROFILE_ID);
     } else {
       this.activeProfile = profileForCanonicalId(storedId) ?? profileForCanonicalId(DEFAULT_PROFILE_ID);
