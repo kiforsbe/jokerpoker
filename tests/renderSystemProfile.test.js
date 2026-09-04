@@ -200,6 +200,23 @@ test('direct rendering resize keeps the logical framebuffer while refitting CSS'
   assert.equal(calls.some(call => call[0] === 'presentationComposer'), false);
 });
 
+test('manual composer disable still resizes the presentation renderer', () => {
+  const container = { clientWidth: 1200, clientHeight: 700 };
+  const { system, calls } = makeProfileSystem(container);
+  system.applyDisplayProfile(DISPLAY_PROFILES.nineties);
+  system.toggleComposer(false);
+  calls.length = 0;
+  container.clientWidth = 700;
+  container.clientHeight = 900;
+
+  system.resize();
+
+  assert.deepEqual(system.renderer.lastSize, { width: 700, height: 525 });
+  assert.ok(calls.some(call => call.join(':') === 'renderer:700:525:false'));
+  assert.ok(calls.some(call => call.join(':') === 'presentationComposer:700:525'));
+  assert.equal(calls.some(call => call.join(':') === 'composer:800:600'), false);
+});
+
 test('context restoration awaits rebuild, reapplies active profile, then resumes engine', async () => {
   const system = new RenderSystem({ systems: new Map(), isRunning: false });
   const calls = [];
@@ -220,6 +237,21 @@ test('context restoration awaits rebuild, reapplies active profile, then resumes
   await recovery;
 
   assert.deepEqual(calls, ['setup', 'apply:nineties']);
+  assert.equal(system.engine.isRunning, true);
+});
+
+test('context restoration preserves direct fallback after a failed compositor rebuild', async () => {
+  const system = new RenderSystem({ systems: new Map(), isRunning: false });
+  const calls = [];
+  system.activeDisplayProfile = DISPLAY_PROFILES.nineties;
+  system.setupPostprocessing = async () => {
+    system.isDirectFallback = true;
+  };
+  system.applyDisplayProfile = () => calls.push('apply');
+
+  await system._handleContextRestored();
+
+  assert.deepEqual(calls, []);
   assert.equal(system.engine.isRunning, true);
 });
 

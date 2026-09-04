@@ -38,6 +38,7 @@ class RenderSystem {
     // Rendering flags
     this.initialized = false;
     this.useComposer = true;
+    this.isDirectFallback = false;
     this.useOutlineEffect = true;
     this.useCRTEffect = this.activeDisplayProfile?.postProcessing.crt.enabled ?? true;
 
@@ -115,7 +116,7 @@ class RenderSystem {
   async _handleContextRestored() {
     const profile = this.activeDisplayProfile ?? this.getDisplayProfile();
     await this.setupPostprocessing();
-    if (profile) this.applyDisplayProfile(profile);
+    if (profile && !this.isDirectFallback) this.applyDisplayProfile(profile);
     if (this.engine) this.engine.isRunning = true;
   }
 
@@ -180,7 +181,7 @@ class RenderSystem {
       this.depthTexture.type = THREE.UnsignedShortType;
 
       await this.setupPostprocessing();
-      this.applyDisplayProfile(profile);
+      if (!this.isDirectFallback) this.applyDisplayProfile(profile);
 
       this.initialized = true;
 
@@ -269,6 +270,7 @@ class RenderSystem {
       this.composer.setSize(logicalSize.width, logicalSize.height);
       this.composer.renderToScreen = false;
       this.useComposer = true;
+      this.isDirectFallback = false;
       
       // Add main render pass first
       this.renderPass = new RenderPass(this.activeScene, this.activeScene?.camera);
@@ -369,6 +371,7 @@ class RenderSystem {
   applyDisplayProfile(profile) {
     validateDisplayProfile(profile);
     this.activeDisplayProfile = profile;
+    this.isDirectFallback = false;
     const logicalSize = this._logicalRenderSize();
     const presentationSize = this._presentationRenderSize();
 
@@ -402,6 +405,7 @@ class RenderSystem {
   forceDirectRendering(profile) {
     validateDisplayProfile(profile);
     this.useComposer = false;
+    this.isDirectFallback = true;
     this.activeDisplayProfile = profile;
     const { width, height } = profile.framebuffer;
     this.renderer?.setPixelRatio(1);
@@ -710,7 +714,7 @@ class RenderSystem {
   resize() {
     if (!this.renderer || !this.activeDisplayProfile) return;
     const size = this._presentationRenderSize();
-    if (!this.useComposer) {
+    if (this.isDirectFallback) {
       this._setCanvasDisplaySize(size, this.activeDisplayProfile.sampling.output);
       return;
     }
