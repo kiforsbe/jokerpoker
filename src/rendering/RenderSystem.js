@@ -294,6 +294,14 @@ class RenderSystem {
     } catch (error) {
       this.logger.log('ERROR', 'RenderSystem: Post-processing setup failed', { error: error.message });
       console.error("RenderSystem: Post-processing setup failed", error);
+      try {
+        this._disposePostprocessing();
+      } catch (cleanupError) {
+        this.logger.log('ERROR', 'RenderSystem: Partial post-processing cleanup failed', {
+          error: cleanupError.message,
+        });
+        console.error('RenderSystem: Partial post-processing cleanup failed', cleanupError);
+      }
       if (this.activeDisplayProfile) this.forceDirectRendering(this.activeDisplayProfile);
       else this.useComposer = false;
     }

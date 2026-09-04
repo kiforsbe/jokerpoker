@@ -409,6 +409,93 @@ test('post-processing setup failure enters direct rendering at the requested pro
   assert.equal(system.outlinePass, null);
 });
 
+test('post-processing allocation failure disposes partial resources before direct fallback', async () => {
+  const container = { clientWidth: 1200, clientHeight: 700 };
+  const system = new RenderSystem({ systems: new Map() });
+  const calls = [];
+  system.logger = { log() {} };
+  system.activeDisplayProfile = DISPLAY_PROFILES.nineties;
+  system.renderer = {
+    domElement: { style: {}, parentElement: container },
+    getPixelRatio: () => 1,
+    getSize: target => target.set(932, 699),
+    setPixelRatio() {},
+    setSize: (width, height) => {
+      system.renderer.lastSize = { width, height };
+    },
+  };
+
+  let composer = null;
+  Object.defineProperty(system, 'composer', {
+    configurable: true,
+    get: () => composer,
+    set: value => {
+      composer = value;
+      if (value) value.dispose = () => calls.push('composer');
+    },
+  });
+  let presentationComposer = null;
+  Object.defineProperty(system, 'presentationComposer', {
+    configurable: true,
+    get: () => presentationComposer,
+    set: value => {
+      presentationComposer = value;
+      if (value) value.dispose = () => calls.push('presentationComposer');
+    },
+  });
+  let renderPass = null;
+  Object.defineProperty(system, 'renderPass', {
+    configurable: true,
+    get: () => renderPass,
+    set: value => {
+      renderPass = value;
+      if (value) value.dispose = () => calls.push('renderPass');
+    },
+  });
+  let outlinePass = null;
+  Object.defineProperty(system, 'outlinePass', {
+    configurable: true,
+    get: () => outlinePass,
+    set: value => {
+      outlinePass = value;
+      if (value) value.dispose = () => calls.push('outlinePass');
+    },
+  });
+  let presentationPass = null;
+  Object.defineProperty(system, 'presentationPass', {
+    configurable: true,
+    get: () => presentationPass,
+    set: value => {
+      if (value) throw new Error('presentation pass allocation failed');
+      presentationPass = value;
+    },
+  });
+
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await system.setupPostprocessing();
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.deepEqual(calls, [
+    'presentationComposer',
+    'composer',
+    'renderPass',
+    'outlinePass',
+  ]);
+  assert.equal(system.presentationComposer, null);
+  assert.equal(system.presentationPass, null);
+  assert.equal(system.crtPass, null);
+  assert.equal(system.composer, null);
+  assert.equal(system.renderPass, null);
+  assert.equal(system.outlinePass, null);
+  assert.equal(system.useComposer, false);
+  assert.equal(system.isDirectFallback, true);
+  assert.deepEqual(system.renderer.lastSize, { width: 800, height: 600 });
+});
+
 test('scene resize keeps the orthographic camera at the fixed world aspect', () => {
   const scene = new Scene();
   scene.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
