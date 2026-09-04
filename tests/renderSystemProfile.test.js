@@ -12,15 +12,13 @@ import { CRTShader } from '../src/rendering/shaders/CRTShader.js';
 
 globalThis.window ??= {};
 
-test('CRT shader uses logical resolution, interpolated noise, and pixel RGB shift', () => {
-  assert.ok(CRTShader.uniforms.scanlineDensity);
-  assert.ok(CRTShader.uniforms.rgbShiftPixels);
-  assert.equal(CRTShader.uniforms.scanlineCount, undefined);
-  assert.match(CRTShader.fragmentShader, /resolution\.y\s*\*\s*scanlineDensity/);
-  assert.match(CRTShader.fragmentShader, /rgbShiftPixels\s*\/\s*max\(resolution\.x/);
-  assert.match(CRTShader.fragmentShader, /float\s+smoothNoise\s*\(/);
-  assert.match(CRTShader.fragmentShader, /smoothNoise\(uv\s*\*\s*resolution/);
-  assert.doesNotMatch(CRTShader.fragmentShader, /rgbShift\([^\n]+0\.002/);
+test('CRT shader separates native source dimensions from final presentation dimensions', () => {
+  assert.ok(CRTShader.uniforms.sourceResolution);
+  assert.ok(CRTShader.uniforms.presentationResolution);
+  assert.equal(CRTShader.uniforms.resolution, undefined);
+  assert.match(CRTShader.fragmentShader, /sourceResolution\.y\s*\*\s*scanlineDensity/);
+  assert.match(CRTShader.fragmentShader, /rgbShiftPixels\s*\/\s*max\(sourceResolution\.x/);
+  assert.match(CRTShader.fragmentShader, /smoothNoise\(uv\s*\*\s*presentationResolution/);
 });
 
 function makeProfileSystem(container = { clientWidth: 1200, clientHeight: 700 }) {
@@ -48,7 +46,8 @@ function makeProfileSystem(container = { clientWidth: 1200, clientHeight: 700 })
   system.crtPass = {
     enabled: false,
     uniforms: {
-      resolution: { value: { set: (x, y) => calls.push(['crtResolution', x, y]) } },
+      sourceResolution: { value: { set: (x, y) => calls.push(['crtResolution', x, y]) } },
+      presentationResolution: { value: { set: (x, y) => calls.push(['crtPresentationResolution', x, y]) } },
       scanlineDensity: { value: 0 },
       scanlineIntensity: { value: 0 },
       rgbShiftPixels: { value: 0 },

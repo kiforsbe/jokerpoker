@@ -285,7 +285,8 @@ class RenderSystem {
 
       // Set up CRT pass last
       this.crtPass = new ShaderPass(CRTShader);
-      this.crtPass.uniforms.resolution.value.set(size.width, size.height);
+      this.crtPass.uniforms.sourceResolution.value.set(size.width, size.height);
+      this.crtPass.uniforms.presentationResolution.value.set(size.width, size.height);
       this.crtPass.uniforms.time.value = 0;
       this.crtPass.uniforms.scanlineDensity.value = this.shaderParams.crt.scanlineDensity;
       this.crtPass.uniforms.scanlineIntensity.value = this.shaderParams.crt.scanlineIntensity;
@@ -339,7 +340,8 @@ class RenderSystem {
 
     if (!this.crtPass) return;
     const uniforms = this.crtPass.uniforms;
-    uniforms.resolution?.value.set(width, height);
+    uniforms.sourceResolution?.value.set(width, height);
+    uniforms.presentationResolution?.value.set(width, height);
     if (uniforms.scanlineDensity) uniforms.scanlineDensity.value = preset.scanlineDensity;
     if (uniforms.scanlineIntensity) uniforms.scanlineIntensity.value = preset.scanlineIntensity;
     if (uniforms.rgbShiftPixels) uniforms.rgbShiftPixels.value = preset.rgbShiftPixels;

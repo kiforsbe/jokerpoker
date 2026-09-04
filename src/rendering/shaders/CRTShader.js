@@ -4,7 +4,8 @@ const CRTShader = {
   uniforms: {
     tDiffuse: { value: null },
     time: { value: 0.0 },
-    resolution: { value: new THREE.Vector2() },
+    sourceResolution: { value: new THREE.Vector2() },
+    presentationResolution: { value: new THREE.Vector2() },
     scanlineDensity: { value: 0.0 },
     rgbShiftPixels: { value: 0.0 },
     scanlineIntensity: { value: 0.1 },
@@ -25,7 +26,8 @@ const CRTShader = {
   fragmentShader: `
     uniform sampler2D tDiffuse;
     uniform float time;
-    uniform vec2 resolution;
+    uniform vec2 sourceResolution;
+    uniform vec2 presentationResolution;
     uniform float scanlineIntensity;
     uniform float scanlineDensity;
     uniform float rgbShiftPixels;
@@ -61,7 +63,7 @@ const CRTShader = {
     }
 
     vec3 scanlines(vec2 uv, vec3 col) {
-      float scanlineCount = resolution.y * scanlineDensity;
+      float scanlineCount = sourceResolution.y * scanlineDensity;
       float scanline = sin(uv.y * scanlineCount * 3.14159 * 2.0) * 0.5 + 0.5;
       scanline = pow(scanline, 1.7);
       col *= 1.0 - (scanlineIntensity - scanlineIntensity * scanline);
@@ -87,13 +89,13 @@ const CRTShader = {
       }
       
       // RGB shift and color
-      vec3 col = rgbShift(tDiffuse, uv, rgbShiftPixels / max(resolution.x, 1.0));
+      vec3 col = rgbShift(tDiffuse, uv, rgbShiftPixels / max(sourceResolution.x, 1.0));
       
       // Apply scanlines
       col = scanlines(uv, col);
       
       // Add noise
-      float noiseVal = (smoothNoise(uv * resolution * 0.08 + vec2(time * 0.5, 0.0)) - 0.5) * noise;
+      float noiseVal = (smoothNoise(uv * presentationResolution * 0.08 + vec2(time * 0.5, 0.0)) - 0.5) * noise;
       col += noiseVal;
       
       // Add screen flicker
