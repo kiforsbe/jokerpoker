@@ -213,34 +213,7 @@ class RenderSystem {
       this.logger.log('DEBUG', 'RenderSystem: Setting up post-processing');
 
       // Clean up existing resources
-      if (this.composer) {
-        this.composer.renderTarget1?.dispose();
-        this.composer.renderTarget2?.dispose();
-        this.composer.dispose();
-        this.composer = null;
-      }
-      if (this.presentationComposer) {
-        this.presentationComposer.renderTarget1?.dispose();
-        this.presentationComposer.renderTarget2?.dispose();
-        this.presentationComposer.dispose();
-        this.presentationComposer = null;
-      }
-      if (this.presentationPass) {
-        this.presentationPass.dispose();
-        this.presentationPass = null;
-      }
-      if (this.renderPass) {
-        this.renderPass.dispose();
-        this.renderPass = null;
-      }
-      if (this.outlinePass) {
-        this.outlinePass.dispose();
-        this.outlinePass = null;
-      }
-      if (this.crtPass) {
-        this.crtPass.dispose();
-        this.crtPass = null;
-      }
+      this._disposePostprocessing();
 
       const logicalSize = this._logicalRenderSize();
       const presentationSize = this._presentationRenderSize();
@@ -311,15 +284,6 @@ class RenderSystem {
       this.crtPass.enabled = this.shaderParams.crt.enabled;
       this.presentationComposer.addPass(this.crtPass);
 
-      // Ensure last pass renders to screen
-      if (this.crtPass) {
-        this.crtPass.renderToScreen = true;
-      } else if (this.outlinePass) {
-        this.outlinePass.renderToScreen = true;
-      } else {
-        this.renderPass.renderToScreen = true;
-      }
-
       this.logger.log('DEBUG', 'RenderSystem: Post-processing setup complete', {
         logicalSize: `${logicalSize.width}x${logicalSize.height}`,
         presentationSize: `${presentationSize.width}x${presentationSize.height}`,
@@ -333,6 +297,29 @@ class RenderSystem {
       if (this.activeDisplayProfile) this.forceDirectRendering(this.activeDisplayProfile);
       else this.useComposer = false;
     }
+  }
+
+  _disposePostprocessing() {
+    const resources = [
+      ['presentationComposer', this.presentationComposer],
+      ['presentationPass', this.presentationPass],
+      ['crtPass', this.crtPass],
+      ['composer', this.composer],
+      ['renderPass', this.renderPass],
+      ['outlinePass', this.outlinePass],
+    ];
+    let disposalError = null;
+
+    for (const [key, resource] of resources) {
+      this[key] = null;
+      try {
+        resource?.dispose?.();
+      } catch (error) {
+        disposalError ??= error;
+      }
+    }
+
+    if (disposalError) throw disposalError;
   }
 
   _filterFor(sampling) {
@@ -466,23 +453,10 @@ class RenderSystem {
       this.renderer.clear();
 
       // Perform rendering
-      if (this.useComposer && this.composer) {
-        // Must manually set renderToScreen on the last pass
-        if (this.crtPass?.enabled) {
-          this.crtPass.renderToScreen = true;
-          if (this.outlinePass) this.outlinePass.renderToScreen = false;
-          if (this.renderPass) this.renderPass.renderToScreen = false;
-        } else if (this.outlinePass?.enabled) {
-          this.outlinePass.renderToScreen = true;
-          if (this.crtPass) this.crtPass.renderToScreen = false;
-          if (this.renderPass) this.renderPass.renderToScreen = false;
-        } else {
-          if (this.renderPass) this.renderPass.renderToScreen = true;
-          if (this.outlinePass) this.outlinePass.renderToScreen = false;
-          if (this.crtPass) this.crtPass.renderToScreen = false;
-        }
-        
+      if (this.useComposer && this.composer && this.presentationComposer && this.presentationPass) {
         this.composer.render(deltaTime);
+        this.presentationPass.map = this.composer.readBuffer.texture;
+        this.presentationComposer.render(deltaTime);
       } else {
         this.renderer.render(this.activeScene, this.activeScene.camera);
       }
@@ -580,14 +554,6 @@ class RenderSystem {
       this.toggleComposer(true);
     }
 
-    // Ensure last pass renders to screen
-    if (this.crtEnabled) {
-      this.crtPass.renderToScreen = true;
-    } else if (this.outlineEnabled) {
-      this.outlinePass.renderToScreen = true;
-    } else {
-      this.renderPass.renderToScreen = true;
-    }
   }
 
   toggleCRTEffect(forceState) {
@@ -607,14 +573,6 @@ class RenderSystem {
       this.toggleComposer(true);
     }
 
-    // Ensure last pass renders to screen
-    if (this.crtPass?.enabled) {
-      this.crtPass.renderToScreen = true;
-    } else if (this.outlinePass?.enabled) {
-      this.outlinePass.renderToScreen = true;
-    } else {
-      this.renderPass.renderToScreen = true;
-    }
   }
 
   createCanvasTexture(width, height, drawCallback, options = {}) {
@@ -741,10 +699,10 @@ class RenderSystem {
     // Clean up Three.js resources
     this._originalMaterials.clear();
     this.depthTexture?.dispose();
-
-    if (this.composer) {
-      this.composer.renderTarget1?.dispose();
-      this.composer.renderTarget2?.dispose();
+    try {
+      this._disposePostprocessing();
+    } catch (error) {
+      this.logger.log('ERROR', 'RenderSystem: Post-processing cleanup failed', { error: error.message });
     }
 
     if (this.renderer) {
@@ -754,10 +712,6 @@ class RenderSystem {
     // Clear references
     this.activeScene = null;
     this.renderer = null;
-    this.composer = null;
-    this.renderPass = null;
-    this.outlinePass = null;
-    this.crtPass = null;
     this.depthTexture = null;
     this.initialized = false;
 

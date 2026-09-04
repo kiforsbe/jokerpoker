@@ -244,6 +244,27 @@ test('direct fallback ignores composer and effect re-enable requests', () => {
   assert.equal(calls.some(call => call[0] === 'presentationComposer'), false);
 });
 
+test('frame routing presents the current logical composer texture', () => {
+  const system = new RenderSystem({ systems: new Map() });
+  const calls = [];
+  system.initialized = true;
+  system.activeScene = { camera: {} };
+  system.composer = {
+    readBuffer: { texture: { id: 'logical-frame' } },
+    render: () => calls.push('logical'),
+  };
+  system.presentationPass = { map: null };
+  system.presentationComposer = { render: () => calls.push('presentation') };
+  system.renderer = { clear: () => calls.push('clear') };
+  system.crtPass = { enabled: true, uniforms: { time: { value: 0 } } };
+
+  system.update(16);
+
+  assert.deepEqual(calls, ['clear', 'logical', 'presentation']);
+  assert.equal(system.presentationPass.map.id, 'logical-frame');
+  assert.equal(system.crtPass.uniforms.time.value, 0.016);
+});
+
 test('context restoration awaits rebuild, reapplies active profile, then resumes engine', async () => {
   const system = new RenderSystem({ systems: new Map(), isRunning: false });
   const calls = [];
@@ -251,16 +272,23 @@ test('context restoration awaits rebuild, reapplies active profile, then resumes
   system.activeDisplayProfile = DISPLAY_PROFILES.nineties;
   system.setupPostprocessing = () => new Promise(resolve => {
     finishSetup = () => {
+      system.composer = { id: 'logical-composer' };
+      system.presentationComposer = { id: 'presentation-composer' };
       calls.push('setup');
       resolve();
     };
   });
-  system.applyDisplayProfile = profile => calls.push(`apply:${profile.id}`);
+  system.applyDisplayProfile = profile => {
+    assert.equal(system.composer.id, 'logical-composer');
+    assert.equal(system.presentationComposer.id, 'presentation-composer');
+    calls.push(`apply:${profile.id}`);
+  };
 
   const recovery = system._handleContextRestored();
   assert.equal(system.engine.isRunning, false);
   assert.deepEqual(calls, []);
   finishSetup();
+  assert.deepEqual(calls, ['setup']);
   await recovery;
 
   assert.deepEqual(calls, ['setup', 'apply:nineties']);
@@ -283,10 +311,19 @@ test('context restoration preserves direct fallback after a failed compositor re
 });
 
 test('direct-render fallback retains exact profile dimensions and CSS sampling', () => {
-  const { system } = makeProfileSystem();
+  const { system, calls } = makeProfileSystem();
   system.applyDisplayProfile(DISPLAY_PROFILES.eighties);
 
   system.forceDirectRendering(DISPLAY_PROFILES.early2000s);
+  system.initialized = true;
+  system.activeScene = { camera: {} };
+  system.renderer.clear = () => calls.push(['clear']);
+  system.renderer.render = () => calls.push(['direct']);
+  system.composer.render = () => calls.push(['logical']);
+  system.presentationComposer.render = () => calls.push(['presentation']);
+  system.crtPass.uniforms.time = { value: 0 };
+  calls.length = 0;
+  system.update(16);
 
   assert.equal(system.useComposer, false);
   assert.equal(system.activeDisplayProfile.id, 'early2000s');
@@ -294,13 +331,55 @@ test('direct-render fallback retains exact profile dimensions and CSS sampling',
   assert.equal(system.renderer.domElement.style.width, '932px');
   assert.equal(system.renderer.domElement.style.height, '699px');
   assert.equal(system.renderer.domElement.style.imageRendering, 'auto');
+  assert.deepEqual(calls, [['clear'], ['direct']]);
+});
+
+test('shutdown disposes both composers and their passes once', () => {
+  const system = new RenderSystem({ systems: new Map() });
+  const calls = [];
+  const disposable = name => ({ dispose: () => calls.push(name) });
+  system.presentationComposer = disposable('presentationComposer');
+  system.presentationPass = disposable('presentationPass');
+  system.crtPass = disposable('crtPass');
+  system.composer = disposable('composer');
+  system.renderPass = disposable('renderPass');
+  system.outlinePass = disposable('outlinePass');
+
+  system.shutdown();
+  system.shutdown();
+
+  assert.deepEqual(calls, [
+    'presentationComposer',
+    'presentationPass',
+    'crtPass',
+    'composer',
+    'renderPass',
+    'outlinePass',
+  ]);
+  assert.equal(system.presentationComposer, null);
+  assert.equal(system.presentationPass, null);
+  assert.equal(system.crtPass, null);
+  assert.equal(system.composer, null);
+  assert.equal(system.renderPass, null);
+  assert.equal(system.outlinePass, null);
 });
 
 test('post-processing setup failure enters direct rendering at the requested profile size', async () => {
   const { system } = makeProfileSystem();
+  const calls = [];
   system.logger = { log() {} };
   system.activeDisplayProfile = DISPLAY_PROFILES.nineties;
-  system.composer.renderTarget1.dispose = () => { throw new Error('GPU target failed'); };
+  system.presentationComposer = {
+    dispose: () => {
+      calls.push('presentationComposer');
+      throw new Error('GPU target failed');
+    },
+  };
+  system.presentationPass = { dispose: () => calls.push('presentationPass') };
+  system.crtPass = { dispose: () => calls.push('crtPass') };
+  system.composer = { dispose: () => calls.push('composer') };
+  system.renderPass = { dispose: () => calls.push('renderPass') };
+  system.outlinePass = { dispose: () => calls.push('outlinePass') };
   const originalError = console.error;
   console.error = () => {};
   try {
@@ -314,6 +393,20 @@ test('post-processing setup failure enters direct rendering at the requested pro
   assert.deepEqual(system.renderer.lastSize, { width: 800, height: 600 });
   assert.equal(system.renderer.domElement.style.width, '932px');
   assert.equal(system.renderer.domElement.style.height, '699px');
+  assert.deepEqual(calls, [
+    'presentationComposer',
+    'presentationPass',
+    'crtPass',
+    'composer',
+    'renderPass',
+    'outlinePass',
+  ]);
+  assert.equal(system.presentationComposer, null);
+  assert.equal(system.presentationPass, null);
+  assert.equal(system.crtPass, null);
+  assert.equal(system.composer, null);
+  assert.equal(system.renderPass, null);
+  assert.equal(system.outlinePass, null);
 });
 
 test('scene resize keeps the orthographic camera at the fixed world aspect', () => {
