@@ -7,7 +7,7 @@ A fan-made **tribute** to the classic Finnish **Jokeripokeri** arcade video poke
 ## Features
 
 - **Full Jokeripokeri game loop** — bet, deal, hold, draw, win meter, collect, and *tuplaus* (double-up) with the authentic red-7-keeps rule
-- **Three resolutions** — pixelated 640×480 and 960×720 machine modes (procedural pixel-art court cards, VT323 CRT font) plus a photo-matched hi-res mode; cycle with **F2** or the corner chip
+- **Three display eras** — 1980s 640×480 with strong CRT, 1990s 800×600 with a cleaner CRT, and clean early-2000s 1024×768 output; cards gain detail at each step while the UI layout stays fixed. Cycle with **F2** or the corner chip
 - **Three display languages** — all screen text (status bar, pay table, hold boxes, win overlay, tuplaus ticker) switches between English, Swedish, and Finnish via a corner chip; the cabinet buttons stay trilingual like the original printed panel
 - **CRT post-processing** — scanline shader, outline/edge-highlight passes
 - **Machine-faithful audio** — ZzFX-synthesized sound effects and a multi-voice chip-tune music engine on the Web Audio API: button ticks, shuffle and card-deal noise, win count-up, tuplaus tunes, and attract-mode music — no audio files, everything generated at runtime
@@ -63,7 +63,7 @@ Click the cabinet buttons, or use the keyboard. The ⤢ chip in the top-right co
 | `D` | Start double-up (tuplaus) |
 | `S` / `←` | Guess small (1–6) |
 | `L` / `→` | Guess large (8–13) |
-| `F2` | Cycle resolution: 640×480 / 960×720 / hi-res |
+| `F2` | Cycle display era: 1980s 640×480 / 1990s 800×600 / early 2000s 1024×768 |
 | `F3` | Cycle UI mode: cabinet / overlay / screen-only |
 | `Alt+D` | Debug panel (`Alt+C` CRT, `Alt+O` outline, `Alt+R` composer, `Alt+W` render mode) |
 
@@ -73,7 +73,7 @@ Click the cabinet buttons, or use the keyboard. The ⤢ chip in the top-right co
 npm test
 ```
 
-Unit tests cover hand evaluation, payouts, tuplaus rules, theming, the audio stack (director, music scheduler, sfx registry, vendored ZzFX), and the offline-build HTML transforms, using the built-in Node.js test runner.
+Unit tests cover hand evaluation, payouts, tuplaus rules, display profiles, the audio stack (director, music scheduler, sfx registry, vendored ZzFX), and the offline-build HTML transforms, using the built-in Node.js test runner.
 
 ## Deploying to GitHub Pages
 
@@ -94,8 +94,8 @@ src/
   index.js            Bootstraps engine, systems, and the game scene
   engine/             Minimal game engine: GameEngine, Scene, GameObject, Component, InputSystem
   game/               Game logic: state machine (Game), Deck, Card, HandEvaluator, payouts, Tuplaus
-  rendering/          RenderSystem, theme (retro/hires), card/deck/UI render components,
-                      animations, particle effects, and CRT/outline shaders
+  rendering/          Display profiles/controller, RenderSystem, texture rasterizer,
+                      card/deck/UI components, animations, and CRT/outline shaders
   audio/              AudioSystem, AudioDirector (event-driven SFX/music), ZzFX-based
                       sfx registry, MusicPlayer, vendored ZzFX synth
   ui/                 CabinetPanel — trilingual DOM button panel
@@ -111,4 +111,4 @@ assets/fonts/         VT323 font (SIL OFL) committed for the offline builds
 - The engine is a small component/entity system: `GameObject`s hold `Component`s, grouped in a `Scene`, driven by `GameEngine` and pluggable systems (render, audio, input).
 - Game rules live in plain modules ([src/game/](src/game/)) with no rendering or audio dependencies, which is what makes them unit-testable.
 - Audio is fully event-driven: game state changes emit events that [AudioDirector.js](src/audio/AudioDirector.js) maps to synthesized sounds and tunes — there are no audio sample files.
-- Theming is centralized in [theme.js](src/rendering/theme.js); render components subscribe to theme changes so the whole scene can switch between retro and hi-res live.
+- [DisplayProfileController.js](src/rendering/DisplayProfileController.js) changes the renderer and [TextureRasterizer.js](src/rendering/TextureRasterizer.js) as one transaction. Rendering code consumes generic framebuffer, sampling, card-art, and CRT settings without branching on era names.

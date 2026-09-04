@@ -3,7 +3,6 @@ import Component from '../engine/Component.js';
 import GameObject from '../engine/GameObject.js';
 import { DebugRenderMode } from '../rendering/RenderSystem.js';
 import { ButtonComponent, TextDisplayComponent } from '../rendering/UIComponent.js';
-import { getTheme } from '../rendering/theme.js';
 
 class DebugPanelComponent extends Component {
   constructor() {
@@ -234,6 +233,11 @@ class DebugPanelComponent extends Component {
     if (!this.visible || !this.panel) return;
 
     const renderSystem = this.engine?.systems.get('render');
+    const displayProfile = this.engine?.systems.get('displayProfile')?.getDisplayProfile();
+    const display = displayProfile
+      ? `${displayProfile.label} ${displayProfile.framebuffer.width}x${displayProfile.framebuffer.height}`
+      : 'N/A';
+    const cardArt = displayProfile?.cardArtLevel ?? 'N/A';
 
     // --- Update Panel Content ---
     const statsHtml = `
@@ -243,13 +247,14 @@ class DebugPanelComponent extends Component {
               <br>
               Renderer:<br>
               Mode (Alt+R): ${renderSystem?.useComposer ? 'Composer ON' : 'Composer OFF'}<br>
+              Display (F2): ${display}<br>
+              Card art: ${cardArt}<br>
               <br>
               Effects:<br>
               CRT (Alt+C): ${renderSystem?.useCRTEffect ? 'ON' : 'OFF'}<br>
               Outline (Alt+O): ${renderSystem?.useOutlineEffect ? 'ON' : 'OFF'}<br>
               <br>
               Debug View (Alt+W): ${renderSystem?.debugRenderMode || 'N/A'}<br>
-              Theme (F2): ${getTheme().name}<br>
               <br>
               Controls (hold Alt):<br>
               Alt+R : Toggle Renderer<br>

@@ -2,7 +2,6 @@
 // Color-coded, trilingual (Swedish / Finnish / English) buttons.
 import { getUiMode, cycleUiMode, onUiModeChanged } from './uiMode.js';
 import { getLanguage, cycleLanguage, onLanguageChanged } from '../i18n.js';
-import { getTheme, toggleTheme, onThemeChanged } from '../rendering/theme.js';
 
 const COLORS = {
   red:    { bg: '#b3231f', lit: '#ff4b44', text: '#ffffff' },
@@ -32,6 +31,7 @@ const ROW2 = ['collect', 'low', 'high', 'double', 'bet'];
 export class CabinetPanel {
   constructor(gameManager) {
     this.gm = gameManager;
+    this.displayProfiles = gameManager.engine.systems.get('displayProfile');
     this.buttons = new Map();
     this._injectStyles();
     this._build();
@@ -137,21 +137,31 @@ export class CabinetPanel {
     document.body.appendChild(b);
   }
 
-  // Resolution chip (also F2): cycles the virtual screen between low
-  // (640x480), medium (960x720), and high (full) resolution.
+  // Display-generation chip (also F2): cycles the three fixed framebuffers.
   _buildResolutionSwitch() {
-    const LABELS = { retro: 'LO', medium: 'MD', hires: 'HI' };
+    const LABELS = { eighties: '80', nineties: '90', early2000s: '2K' };
     const b = document.createElement('button');
     b.id = 'res';
     b.className = 'ui-chip';
-    const render = (theme) => {
-      b.textContent = LABELS[theme.name] ?? '?';
-      b.title = `Resolution: ${theme.name} (click or F2 to switch)`;
+    const render = (profile) => {
+      const { width, height } = profile.framebuffer;
+      b.textContent = LABELS[profile.id] ?? '?';
+      b.title = `Display: ${profile.label} ${width}x${height} (click or F2 to switch)`;
     };
-    b.addEventListener('click', () => toggleTheme());
-    onThemeChanged(render);
-    render(getTheme());
+    b.addEventListener('click', () => this.displayProfiles.cycleDisplayProfile());
+    this._offDisplayProfile = this.displayProfiles.onDisplayProfileChanged(render);
+    render(this.displayProfiles.getDisplayProfile());
+    this._resolutionChip = b;
     document.body.appendChild(b);
+  }
+
+  destroy() {
+    this._offDisplayProfile?.();
+    this._offDisplayProfile = null;
+    if (this._resolutionChip?.parentNode) {
+      this._resolutionChip.parentNode.removeChild(this._resolutionChip);
+    }
+    this._resolutionChip = null;
   }
 
   // Fullscreen toggle chip beside the mode chip. Hidden where page

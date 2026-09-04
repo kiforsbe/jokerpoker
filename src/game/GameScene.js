@@ -14,19 +14,22 @@ import { CabinetPanel } from '../ui/CabinetPanel.js';
 import { createTicker } from '../rendering/TickerComponent.js';
 import { createGambleHints } from '../rendering/GambleHints.js';
 import { AudioDirector } from '../audio/AudioDirector.js';
-import { toggleTheme, SCREEN_ASPECT } from '../rendering/theme.js';
+import { SCREEN_ASPECT } from '../rendering/displayProfiles.js';
 
 class GameScene extends Scene {
   constructor() {
     super('GameScene');
     this.gameManager = null;
     this.audioSystem = null;
+    this.displayProfiles = null;
+    this._displayProfileKeydown = null;
   }
 
   async initialize() {
     // Get references to systems
     this.audioSystem = this.engine.systems.get('audio');
     const renderSystem = this.engine.systems.get('render');
+    this.displayProfiles = this.engine.systems.get('displayProfile');
 
     // Create and set up orthographic camera. The visible world is the fixed
     // 4:3 game screen — the canvas is letterboxed to the same ratio, so the
@@ -123,13 +126,23 @@ class GameScene extends Scene {
     // Start the game in its initial state
     this.gameManager.setInitialState();
 
-    // F2 flips between the retro (pixelated) and hires display modes.
-    window.addEventListener('keydown', (e) => {
+    // F2 cycles the three fixed display-generation profiles.
+    this._displayProfileKeydown = (e) => {
       if (e.key === 'F2') {
         e.preventDefault();
-        toggleTheme();
+        this.displayProfiles?.cycleDisplayProfile();
       }
-    });
+    };
+    window.addEventListener('keydown', this._displayProfileKeydown);
+  }
+
+  cleanup() {
+    if (this._displayProfileKeydown) {
+      window.removeEventListener('keydown', this._displayProfileKeydown);
+      this._displayProfileKeydown = null;
+    }
+    this.cabinetPanel?.destroy();
+    this.cabinetPanel = null;
   }
 
   // Add a GameObject to the scene and run its components' lifecycle now that the

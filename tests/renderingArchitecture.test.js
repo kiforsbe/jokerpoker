@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const canvasProducerFiles = [
   'BackgroundRenderComponent.js',
@@ -17,6 +17,14 @@ const readRendererSource = file => readFileSync(
   new URL(`../src/rendering/${file}`, import.meta.url),
   'utf8',
 );
+
+function listJavaScriptFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory);
+    if (entry.isDirectory()) return listJavaScriptFiles(child);
+    return entry.name.endsWith('.js') ? [child] : [];
+  });
+}
 
 function callArguments(source, functionName) {
   const calls = [];
@@ -56,6 +64,27 @@ test('canvas renderers do not subscribe to the legacy theme module', () => {
     assert.ok(!source.includes("from './theme.js'"), `${file}: legacy theme import`);
     assert.ok(!source.includes('onThemeChanged'), `${file}: legacy theme listener`);
     assert.ok(!source.includes('paintThemed'), `${file}: legacy themed paint`);
+  }
+});
+
+test('source has no legacy theme imports or legacy profile API calls', () => {
+  const sourceFiles = listJavaScriptFiles(new URL('../src/', import.meta.url));
+  const legacyApis = [
+    'rendering/theme.js',
+    "from './theme.js'",
+    "from '../rendering/theme.js'",
+    'getTheme(',
+    'setTheme(',
+    'toggleTheme(',
+    'onThemeChanged(',
+    'paintThemed(',
+  ];
+
+  for (const file of sourceFiles) {
+    const source = readFileSync(file, 'utf8');
+    for (const legacy of legacyApis) {
+      assert.ok(!source.includes(legacy), `${file.pathname}: ${legacy}`);
+    }
   }
 });
 
