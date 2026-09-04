@@ -18,6 +18,21 @@ const readRendererSource = file => readFileSync(
   'utf8',
 );
 
+const legacyThemePatterns = [
+  {
+    label: 'theme.js module specifier',
+    pattern: /\b(?:from|import|require)\s*(?:\(\s*)?(?:['"]theme\.js['"]|['"][^'"\r\n]*[\\/]theme\.js['"])/,
+  },
+  {
+    label: 'legacy theme API identifier',
+    pattern: /\b(?:getTheme|setTheme|toggleTheme|onThemeChanged|paintThemed)\b/,
+  },
+];
+
+function findLegacyThemeUsage(source) {
+  return legacyThemePatterns.find(({ pattern }) => pattern.test(source))?.label ?? null;
+}
+
 function listJavaScriptFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory);
@@ -58,6 +73,35 @@ function callArguments(source, functionName) {
   }
 }
 
+test('legacy theme guard rejects alternate module paths and aliased API references', () => {
+  const bypasses = [
+    `import { PALETTE } from '../../theme.js';`,
+    `export { LAYOUT } from '../../../rendering/../theme.js';`,
+    `const oldModule = await import ( '../theme.js' );`,
+    `const active = getTheme ();`,
+    `const readActive = getTheme; readActive();`,
+    `const cycle = toggleTheme; cycle();`,
+    `paintThemed /* legacy wrapper */ (context, draw);`,
+  ];
+
+  for (const source of bypasses) {
+    assert.notEqual(findLegacyThemeUsage(source), null, source);
+  }
+});
+
+test('legacy theme guard allows unrelated module and identifier lookalikes', () => {
+  const allowed = [
+    `import './themes.js';`,
+    `const message = 'theme.js';`,
+    `const getThemeLabel = () => 'Display';`,
+    `const paintThemedPreview = false;`,
+  ];
+
+  for (const source of allowed) {
+    assert.equal(findLegacyThemeUsage(source), null, source);
+  }
+});
+
 test('canvas renderers do not subscribe to the legacy theme module', () => {
   for (const file of canvasProducerFiles) {
     const source = readRendererSource(file);
@@ -69,22 +113,11 @@ test('canvas renderers do not subscribe to the legacy theme module', () => {
 
 test('source has no legacy theme imports or legacy profile API calls', () => {
   const sourceFiles = listJavaScriptFiles(new URL('../src/', import.meta.url));
-  const legacyApis = [
-    'rendering/theme.js',
-    "from './theme.js'",
-    "from '../rendering/theme.js'",
-    'getTheme(',
-    'setTheme(',
-    'toggleTheme(',
-    'onThemeChanged(',
-    'paintThemed(',
-  ];
 
   for (const file of sourceFiles) {
     const source = readFileSync(file, 'utf8');
-    for (const legacy of legacyApis) {
-      assert.ok(!source.includes(legacy), `${file.pathname}: ${legacy}`);
-    }
+    const violation = findLegacyThemeUsage(source);
+    assert.equal(violation, null, `${file.pathname}: ${violation}`);
   }
 });
 
