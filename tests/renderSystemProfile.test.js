@@ -69,6 +69,7 @@ test('applies exact profile size, DPR 1, CSS fit, filters, composer, and uniform
   assert.ok(calls.some(call => call.join(':') === 'composer:800:600'));
   assert.ok(calls.some(call => call.join(':') === 'outline:800:600'));
   assert.ok(calls.some(call => call.join(':') === 'crtResolution:800:600'));
+  assert.ok(calls.some(call => call.join(':') === 'crtPresentationResolution:800:600'));
   assert.ok(calls.some(call => call.join(':') === 'dpr:1'));
   assert.ok(calls.some(call => call.join(':') === 'composerDpr:1'));
   assert.equal(system.renderer.domElement.style.width, '932px');
@@ -93,6 +94,7 @@ test('CRT presets set every generic uniform and fully reset disabled early-2000s
   system.applyDisplayProfile(DISPLAY_PROFILES.eighties);
   assert.equal(system.crtPass.enabled, true);
   assert.ok(calls.some(call => call.join(':') === 'crtResolution:640:480'));
+  assert.ok(calls.some(call => call.join(':') === 'crtPresentationResolution:640:480'));
   assert.equal(system.crtPass.uniforms.scanlineDensity.value, 0.5);
   assert.equal(system.crtPass.uniforms.scanlineIntensity.value, 0.16);
   assert.equal(system.crtPass.uniforms.rgbShiftPixels.value, 1.5);
