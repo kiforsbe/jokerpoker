@@ -151,6 +151,55 @@ test('host resize changes only presentation dimensions and preserves logical fra
   assert.equal(calls.some(call => call[0] === 'composer'), false);
 });
 
+test('scene assignment preserves logical composer targets and pass order', () => {
+  const { system, calls } = makeProfileSystem();
+  system.applyDisplayProfile(DISPLAY_PROFILES.nineties);
+  calls.length = 0;
+
+  const renderPass = {};
+  system.renderPass = renderPass;
+  system.composer.passes = [renderPass, system.outlinePass];
+  system.composer.reset = () => {
+    calls.push(['composerReset']);
+    system.composer.setSize(
+      system.renderer.lastSize.width,
+      system.renderer.lastSize.height,
+    );
+  };
+  system.composer.addPass = pass => system.composer.passes.push(pass);
+  const scene = {
+    camera: {},
+    resize: (width, height) => calls.push(['scene', width, height]),
+  };
+
+  system.setActiveScene(scene);
+
+  assert.equal(calls.some(call => call[0] === 'composerReset'), false);
+  assert.equal(calls.some(call => call.join(':') === 'composer:932:699'), false);
+  assert.deepEqual(system.composer.passes, [renderPass, system.outlinePass]);
+  assert.equal(system.renderPass.scene, scene);
+  assert.equal(system.renderPass.camera, scene.camera);
+  assert.ok(calls.some(call => call.join(':') === 'scene:800:600'));
+});
+
+test('direct rendering resize keeps the logical framebuffer while refitting CSS', () => {
+  const container = { clientWidth: 1200, clientHeight: 700 };
+  const { system, calls } = makeProfileSystem(container);
+  system.forceDirectRendering(DISPLAY_PROFILES.early2000s);
+  calls.length = 0;
+  container.clientWidth = 700;
+  container.clientHeight = 900;
+
+  system.resize();
+
+  assert.deepEqual(system.renderer.lastSize, { width: 1024, height: 768 });
+  assert.equal(system.renderer.domElement.style.width, '700px');
+  assert.equal(system.renderer.domElement.style.height, '525px');
+  assert.equal(calls.some(call => call[0] === 'renderer'), false);
+  assert.equal(calls.some(call => call[0] === 'composer'), false);
+  assert.equal(calls.some(call => call[0] === 'presentationComposer'), false);
+});
+
 test('context restoration awaits rebuild, reapplies active profile, then resumes engine', async () => {
   const system = new RenderSystem({ systems: new Map(), isRunning: false });
   const calls = [];

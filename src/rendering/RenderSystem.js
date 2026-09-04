@@ -89,15 +89,6 @@ class RenderSystem {
         this.renderPass.camera = scene.camera;
       }
 
-      // Update composer if it exists
-      if (this.composer) {
-        this.composer.reset();
-
-        // Re-add passes in the correct order
-        if (this.renderPass) this.composer.addPass(this.renderPass);
-        if (this.outlinePass) this.composer.addPass(this.outlinePass);
-      }
-
       const size = this.activeDisplayProfile?.framebuffer;
       if (size && scene.resize) scene.resize(size.width, size.height);
 
@@ -719,6 +710,10 @@ class RenderSystem {
   resize() {
     if (!this.renderer || !this.activeDisplayProfile) return;
     const size = this._presentationRenderSize();
+    if (!this.useComposer) {
+      this._setCanvasDisplaySize(size, this.activeDisplayProfile.sampling.output);
+      return;
+    }
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(size.width, size.height, false);
     this._setCanvasDisplaySize(size, this.activeDisplayProfile.sampling.output);
