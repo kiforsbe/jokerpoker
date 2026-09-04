@@ -519,6 +519,7 @@ class RenderSystem {
 
   toggleComposer(forceState) {
     const newState = forceState === undefined ? !this.useComposer : !!forceState;
+    if (newState && this.isDirectFallback) return;
     if (newState === this.useComposer) return;
 
     this.useComposer = newState;
@@ -561,6 +562,7 @@ class RenderSystem {
 
   toggleOutlineEffect(forceState) {
     const newState = forceState === undefined ? !this.useOutlineEffect : !!forceState;
+    if (newState && this.isDirectFallback) return;
     if (newState === this.useOutlineEffect) return;
 
     this.useOutlineEffect = newState;
@@ -590,6 +592,7 @@ class RenderSystem {
 
   toggleCRTEffect(forceState) {
     const newState = forceState === undefined ? !this.useCRTEffect : !!forceState;
+    if (newState && this.isDirectFallback) return;
     if (newState === this.useCRTEffect) return;
 
     this.setCRTEffectEnabled(newState);

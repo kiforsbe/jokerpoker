@@ -217,6 +217,33 @@ test('manual composer disable still resizes the presentation renderer', () => {
   assert.equal(calls.some(call => call.join(':') === 'composer:800:600'), false);
 });
 
+test('direct fallback ignores composer and effect re-enable requests', () => {
+  const container = { clientWidth: 1200, clientHeight: 700 };
+  const { system, calls } = makeProfileSystem(container);
+  system.forceDirectRendering(DISPLAY_PROFILES.early2000s);
+  system.toggleComposer(true);
+  system.useOutlineEffect = false;
+  system.toggleOutlineEffect(true);
+  system.useCRTEffect = false;
+  system.toggleCRTEffect(true);
+  calls.length = 0;
+  container.clientWidth = 700;
+  container.clientHeight = 900;
+
+  system.resize();
+
+  assert.equal(system.isDirectFallback, true);
+  assert.equal(system.useComposer, false);
+  assert.equal(system.useOutlineEffect, false);
+  assert.equal(system.useCRTEffect, false);
+  assert.deepEqual(system.renderer.lastSize, { width: 1024, height: 768 });
+  assert.equal(system.renderer.domElement.style.width, '700px');
+  assert.equal(system.renderer.domElement.style.height, '525px');
+  assert.equal(calls.some(call => call[0] === 'renderer'), false);
+  assert.equal(calls.some(call => call[0] === 'composer'), false);
+  assert.equal(calls.some(call => call[0] === 'presentationComposer'), false);
+});
+
 test('context restoration awaits rebuild, reapplies active profile, then resumes engine', async () => {
   const system = new RenderSystem({ systems: new Map(), isRunning: false });
   const calls = [];
