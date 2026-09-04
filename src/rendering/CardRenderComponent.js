@@ -252,9 +252,7 @@ class CardRenderComponent extends RenderComponent {
     if (value === 'Joker') {
       // The card's name spelled vertically down the corner, translated
       // ("JOKERI" in Finnish). The jester art leaves this column wider
-      // than the normal index column, so the letters run large. VT323
-      // (retro) inks ~35% smaller than bold Arial (hires) at equal px,
-      // so the retro size compensates.
+      // than the normal index column, so the letters run large.
       const name = t('joker');
       const letterFont = Math.round(w * 0.18);
       // Generous top margin; the column then runs well down the card edge
@@ -287,18 +285,21 @@ class CardRenderComponent extends RenderComponent {
         ctx.fillText(sym, cornerX, h * CORNER_INDEX_SUIT_Y_SCALE);
       };
     }
-    drawIndex(); // top-left, as drawn
-    ctx.save();
-    // Flip the canvas 180° around its center so the same drawIndex() call
-    // lands in the bottom-right corner, rotated to read correctly upside-down.
-    ctx.translate(w, h);
-    ctx.rotate(Math.PI);
-    drawIndex();
-    ctx.restore();
+    const drawCornerIndices = () => {
+      drawIndex(); // top-left, as drawn
+      ctx.save();
+      // Flip the canvas 180° around its center so the same drawIndex() call
+      // lands in the bottom-right corner, rotated to read correctly upside-down.
+      ctx.translate(w, h);
+      ctx.rotate(Math.PI);
+      drawIndex();
+      ctx.restore();
+    };
 
     // ---- Joker illustration varies only by the generic art fidelity. ----
     if (value === 'Joker') {
       drawJokerArt(ctx, { x: 0, y: 0, width: w, height: h }, this._cardArtLevel());
+      drawCornerIndices();
       return;
     }
 
@@ -327,6 +328,7 @@ class CardRenderComponent extends RenderComponent {
         rank: value, suitColor: color, suitSymbol: sym,
       }, this._cardArtLevel());
     }
+    drawCornerIndices();
   }
 
   flip() {

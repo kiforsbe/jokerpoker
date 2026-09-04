@@ -88,3 +88,21 @@ test('card component resolves generic art fidelity from the active profile', () 
   card._renderSystem = null;
   assert.equal(card._cardArtLevel(), 'high-detail');
 });
+
+test('court card corner indices draw above the illustration', () => {
+  const calls = [];
+  const context = {
+    canvas: { width: 100, height: 140 },
+    measureText: () => ({ width: 10, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2 }),
+    clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, arcTo() {}, closePath() {},
+    fill() {}, stroke() {}, save() {}, restore() {}, translate() {}, rotate() {},
+    fillRect() {}, ellipse() {}, quadraticCurveTo() {},
+    fillText: text => calls.push(text),
+  };
+  const card = new CardRenderComponent();
+  card._renderSystem = { activeDisplayProfile: { cardArtLevel: 'high-detail' } };
+
+  card.drawCard(context, { suit: 'Clubs', value: 'K' });
+
+  assert.deepEqual(calls.slice(-4), ['K', '♣', 'K', '♣']);
+});

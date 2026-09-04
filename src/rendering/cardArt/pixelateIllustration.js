@@ -22,4 +22,3 @@ export function pixelateIllustration(ctx, bounds, drawMaster, raster) {
   ctx.drawImage(canvas, bounds.x, bounds.y, bounds.width, bounds.height);
   ctx.restore();
 }
-
