@@ -40,13 +40,18 @@ function makeProfileSystem(container = { clientWidth: 1200, clientHeight: 700 })
     setPixelRatio: value => calls.push(['composerDpr', value]),
     setSize: (...args) => calls.push(['composer', ...args]),
   };
+  system.presentationComposer = {
+    setPixelRatio: value => calls.push(['presentationComposerDpr', value]),
+    setSize: (...args) => calls.push(['presentationComposer', ...args]),
+  };
+  system.presentationPass = { map: null };
   system.outlinePass = {
     uniforms: { resolution: { value: { set: (...args) => calls.push(['outline', ...args]) } } },
   };
   system.crtPass = {
     enabled: false,
     uniforms: {
-      sourceResolution: { value: { set: (x, y) => calls.push(['crtResolution', x, y]) } },
+      sourceResolution: { value: { set: (x, y) => calls.push(['crtSourceResolution', x, y]) } },
       presentationResolution: { value: { set: (x, y) => calls.push(['crtPresentationResolution', x, y]) } },
       scanlineDensity: { value: 0 },
       scanlineIntensity: { value: 0 },
@@ -60,18 +65,20 @@ function makeProfileSystem(container = { clientWidth: 1200, clientHeight: 700 })
   return { system, calls };
 }
 
-test('applies exact profile size, DPR 1, CSS fit, filters, composer, and uniforms', () => {
+test('applies exact logical and presentation sizes, filters, composers, and CRT uniforms', () => {
   const { system, calls } = makeProfileSystem();
 
   system.applyDisplayProfile(DISPLAY_PROFILES.nineties);
 
-  assert.ok(calls.some(call => call.join(':') === 'renderer:800:600:false'));
+  assert.deepEqual(system.renderer.lastSize, { width: 932, height: 699 });
   assert.ok(calls.some(call => call.join(':') === 'composer:800:600'));
+  assert.ok(calls.some(call => call.join(':') === 'presentationComposer:932:699'));
   assert.ok(calls.some(call => call.join(':') === 'outline:800:600'));
-  assert.ok(calls.some(call => call.join(':') === 'crtResolution:800:600'));
-  assert.ok(calls.some(call => call.join(':') === 'crtPresentationResolution:800:600'));
+  assert.ok(calls.some(call => call.join(':') === 'crtSourceResolution:800:600'));
+  assert.ok(calls.some(call => call.join(':') === 'crtPresentationResolution:932:699'));
   assert.ok(calls.some(call => call.join(':') === 'dpr:1'));
   assert.ok(calls.some(call => call.join(':') === 'composerDpr:1'));
+  assert.ok(calls.some(call => call.join(':') === 'presentationComposerDpr:1'));
   assert.equal(system.renderer.domElement.style.width, '932px');
   assert.equal(system.renderer.domElement.style.height, '699px');
   assert.equal(system.renderer.domElement.style.imageRendering, 'pixelated');
@@ -93,8 +100,8 @@ test('CRT presets set every generic uniform and fully reset disabled early-2000s
 
   system.applyDisplayProfile(DISPLAY_PROFILES.eighties);
   assert.equal(system.crtPass.enabled, true);
-  assert.ok(calls.some(call => call.join(':') === 'crtResolution:640:480'));
-  assert.ok(calls.some(call => call.join(':') === 'crtPresentationResolution:640:480'));
+  assert.ok(calls.some(call => call.join(':') === 'crtSourceResolution:640:480'));
+  assert.ok(calls.some(call => call.join(':') === 'crtPresentationResolution:932:699'));
   assert.equal(system.crtPass.uniforms.scanlineDensity.value, 0.5);
   assert.equal(system.crtPass.uniforms.scanlineIntensity.value, 0.16);
   assert.equal(system.crtPass.uniforms.rgbShiftPixels.value, 1.5);
@@ -118,14 +125,14 @@ test('all display profiles select fixed logical framebuffers and generic output 
     [DISPLAY_PROFILES.early2000s, { width: 1024, height: 768 }, 'auto', THREE.LinearFilter],
   ]) {
     system.applyDisplayProfile(profile);
-    assert.deepEqual(system.renderer.lastSize, expectedSize);
+    assert.deepEqual(system.renderer.lastSize, { width: 1600, height: 1200 });
     assert.deepEqual(system._renderSize(), expectedSize);
     assert.equal(system.renderer.domElement.style.imageRendering, expectedOutput);
     assert.equal(system.composer.renderTarget1.texture.minFilter, expectedFilter);
   }
 });
 
-test('host resize changes only CSS fit and preserves logical framebuffer', () => {
+test('host resize changes only presentation dimensions and preserves logical framebuffer', () => {
   const container = { clientWidth: 1200, clientHeight: 700 };
   const { system, calls } = makeProfileSystem(container);
   system.applyDisplayProfile(DISPLAY_PROFILES.early2000s);
@@ -137,8 +144,10 @@ test('host resize changes only CSS fit and preserves logical framebuffer', () =>
 
   assert.equal(system.renderer.domElement.style.width, '700px');
   assert.equal(system.renderer.domElement.style.height, '525px');
-  assert.deepEqual(system.renderer.lastSize, { width: 1024, height: 768 });
-  assert.equal(calls.some(call => call[0] === 'renderer'), false);
+  assert.deepEqual(system.renderer.lastSize, { width: 700, height: 525 });
+  assert.ok(calls.some(call => call.join(':') === 'presentationComposer:700:525'));
+  assert.equal(calls.some(call => call.join(':') === 'composer:1024:768'), false);
+  assert.ok(calls.some(call => call.join(':') === 'renderer:700:525:false'));
   assert.equal(calls.some(call => call[0] === 'composer'), false);
 });
 

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { TexturePass } from 'three/addons/postprocessing/TexturePass.js';
 import { CRTShader } from './shaders/CRTShader.js';
 import { OutlineShader } from './shaders/OutlineShader.js';
 import { SCREEN_ASPECT, validateDisplayProfile } from './displayProfiles.js';
@@ -27,6 +28,8 @@ class RenderSystem {
 
     // Post-processing
     this.composer = null;
+    this.presentationComposer = null;
+    this.presentationPass = null;
     this.renderPass = null;
     this.outlinePass = null;
     this.crtPass = null;
@@ -93,7 +96,6 @@ class RenderSystem {
         // Re-add passes in the correct order
         if (this.renderPass) this.composer.addPass(this.renderPass);
         if (this.outlinePass) this.composer.addPass(this.outlinePass);
-        if (this.crtPass) this.composer.addPass(this.crtPass);
       }
 
       const size = this.activeDisplayProfile?.framebuffer;
@@ -165,8 +167,8 @@ class RenderSystem {
       const profile = this.getDisplayProfile();
       validateDisplayProfile(profile);
       this.activeDisplayProfile = profile;
-      const displaySize = this._fitScreenSize();
-      const { width, height } = this._renderSize();
+      const displaySize = this._presentationRenderSize();
+      const { width, height } = displaySize;
       this.renderer.setPixelRatio(1);
       this.renderer.setSize(width, height, false);
       this._setCanvasDisplaySize(displaySize, profile.sampling.output);
@@ -225,6 +227,16 @@ class RenderSystem {
         this.composer.dispose();
         this.composer = null;
       }
+      if (this.presentationComposer) {
+        this.presentationComposer.renderTarget1?.dispose();
+        this.presentationComposer.renderTarget2?.dispose();
+        this.presentationComposer.dispose();
+        this.presentationComposer = null;
+      }
+      if (this.presentationPass) {
+        this.presentationPass.dispose();
+        this.presentationPass = null;
+      }
       if (this.renderPass) {
         this.renderPass.dispose();
         this.renderPass = null;
@@ -238,14 +250,15 @@ class RenderSystem {
         this.crtPass = null;
       }
 
-      const size = this._renderSize();
+      const logicalSize = this._logicalRenderSize();
+      const presentationSize = this._presentationRenderSize();
       const pixelRatio = 1;
       const sceneFilter = this._filterFor(this.activeDisplayProfile.sampling.scene);
 
       // Create render targets with matching format
       const renderTarget1 = new THREE.WebGLRenderTarget(
-        size.width * pixelRatio,
-        size.height * pixelRatio,
+        logicalSize.width * pixelRatio,
+        logicalSize.height * pixelRatio,
         {
           minFilter: sceneFilter,
           magFilter: sceneFilter,
@@ -262,7 +275,8 @@ class RenderSystem {
       // Create composer with shared render targets
       this.composer = new EffectComposer(this.renderer, renderTarget1);
       this.composer.setPixelRatio(1);
-      this.composer.setSize(size.width, size.height);
+      this.composer.setSize(logicalSize.width, logicalSize.height);
+      this.composer.renderToScreen = false;
       this.useComposer = true;
       
       // Add main render pass first
@@ -273,7 +287,7 @@ class RenderSystem {
 
       // Set up outline pass
       this.outlinePass = new ShaderPass(OutlineShader);
-      this.outlinePass.uniforms.resolution.value.set(size.width, size.height);
+      this.outlinePass.uniforms.resolution.value.set(logicalSize.width, logicalSize.height);
       this.outlinePass.uniforms.cameraNear.value = this.activeScene?.camera?.near || 0.1;
       this.outlinePass.uniforms.cameraFar.value = this.activeScene?.camera?.far || 100;
       this.outlinePass.uniforms.tDepth.value = this.depthTexture;
@@ -283,10 +297,16 @@ class RenderSystem {
       this.outlinePass.enabled = this.shaderParams.outline.enabled;
       this.composer.addPass(this.outlinePass);
 
-      // Set up CRT pass last
+      this.presentationComposer = new EffectComposer(this.renderer);
+      this.presentationComposer.setPixelRatio(1);
+      this.presentationComposer.setSize(presentationSize.width, presentationSize.height);
+      this.presentationPass = new TexturePass(this.composer.readBuffer.texture);
+      this.presentationComposer.addPass(this.presentationPass);
+
+      // Set up CRT pass last in the presentation composer
       this.crtPass = new ShaderPass(CRTShader);
-      this.crtPass.uniforms.sourceResolution.value.set(size.width, size.height);
-      this.crtPass.uniforms.presentationResolution.value.set(size.width, size.height);
+      this.crtPass.uniforms.sourceResolution.value.set(logicalSize.width, logicalSize.height);
+      this.crtPass.uniforms.presentationResolution.value.set(presentationSize.width, presentationSize.height);
       this.crtPass.uniforms.time.value = 0;
       this.crtPass.uniforms.scanlineDensity.value = this.shaderParams.crt.scanlineDensity;
       this.crtPass.uniforms.scanlineIntensity.value = this.shaderParams.crt.scanlineIntensity;
@@ -296,7 +316,7 @@ class RenderSystem {
       this.crtPass.uniforms.vignetteIntensity.value = this.shaderParams.crt.vignetteIntensity;
       this.crtPass.uniforms.curvature.value.copy(this.shaderParams.crt.curvature);
       this.crtPass.enabled = this.shaderParams.crt.enabled;
-      this.composer.addPass(this.crtPass);
+      this.presentationComposer.addPass(this.crtPass);
 
       // Ensure last pass renders to screen
       if (this.crtPass) {
@@ -308,7 +328,8 @@ class RenderSystem {
       }
 
       this.logger.log('DEBUG', 'RenderSystem: Post-processing setup complete', {
-        size: `${size.width}x${size.height}`,
+        logicalSize: `${logicalSize.width}x${logicalSize.height}`,
+        presentationSize: `${presentationSize.width}x${presentationSize.height}`,
         pixelRatio,
         passes: ['render', 'outline', 'crt']
       });
@@ -325,7 +346,7 @@ class RenderSystem {
     return sampling === 'nearest' ? THREE.NearestFilter : THREE.LinearFilter;
   }
 
-  _applyCRTPreset(preset, width, height) {
+  _applyCRTPreset(preset, sourceSize, presentationSize) {
     Object.assign(this.shaderParams.crt, {
       enabled: !!preset.enabled,
       scanlineDensity: preset.scanlineDensity,
@@ -340,8 +361,8 @@ class RenderSystem {
 
     if (!this.crtPass) return;
     const uniforms = this.crtPass.uniforms;
-    uniforms.sourceResolution?.value.set(width, height);
-    uniforms.presentationResolution?.value.set(width, height);
+    uniforms.sourceResolution?.value.set(sourceSize.width, sourceSize.height);
+    uniforms.presentationResolution?.value.set(presentationSize.width, presentationSize.height);
     if (uniforms.scanlineDensity) uniforms.scanlineDensity.value = preset.scanlineDensity;
     if (uniforms.scanlineIntensity) uniforms.scanlineIntensity.value = preset.scanlineIntensity;
     if (uniforms.rgbShiftPixels) uniforms.rgbShiftPixels.value = preset.rgbShiftPixels;
@@ -357,14 +378,17 @@ class RenderSystem {
   applyDisplayProfile(profile) {
     validateDisplayProfile(profile);
     this.activeDisplayProfile = profile;
-    const { width, height } = profile.framebuffer;
+    const logicalSize = this._logicalRenderSize();
+    const presentationSize = this._presentationRenderSize();
 
     this.renderer?.setPixelRatio(1);
-    this.renderer?.setSize(width, height, false);
-    this._setCanvasDisplaySize(this._fitScreenSize(), profile.sampling.output);
+    this.renderer?.setSize(presentationSize.width, presentationSize.height, false);
+    this._setCanvasDisplaySize(presentationSize, profile.sampling.output);
 
     this.composer?.setPixelRatio(1);
-    this.composer?.setSize(width, height);
+    this.composer?.setSize(logicalSize.width, logicalSize.height);
+    this.presentationComposer?.setPixelRatio(1);
+    this.presentationComposer?.setSize(presentationSize.width, presentationSize.height);
     const sceneFilter = this._filterFor(profile.sampling.scene);
     const targets = new Set([
       this.composer?.renderTarget1,
@@ -379,9 +403,9 @@ class RenderSystem {
       target.texture.needsUpdate = true;
     }
 
-    this.outlinePass?.uniforms.resolution.value.set(width, height);
-    this._applyCRTPreset(profile.postProcessing.crt, width, height);
-    this.activeScene?.resize?.(width, height);
+    this.outlinePass?.uniforms.resolution.value.set(logicalSize.width, logicalSize.height);
+    this._applyCRTPreset(profile.postProcessing.crt, logicalSize, presentationSize);
+    this.activeScene?.resize?.(logicalSize.width, logicalSize.height);
   }
 
   forceDirectRendering(profile) {
@@ -676,6 +700,14 @@ class RenderSystem {
     return { ...profile.framebuffer };
   }
 
+  _logicalRenderSize() {
+    return this._renderSize();
+  }
+
+  _presentationRenderSize() {
+    return this._fitScreenSize();
+  }
+
   _setCanvasDisplaySize({ width, height }, outputSampling = this.activeDisplayProfile?.sampling.output ?? 'auto') {
     if (!this.renderer?.domElement) return;
     const canvas = this.renderer.domElement;
@@ -686,10 +718,12 @@ class RenderSystem {
 
   resize() {
     if (!this.renderer || !this.activeDisplayProfile) return;
-    this._setCanvasDisplaySize(
-      this._fitScreenSize(),
-      this.activeDisplayProfile.sampling.output,
-    );
+    const size = this._presentationRenderSize();
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(size.width, size.height, false);
+    this._setCanvasDisplaySize(size, this.activeDisplayProfile.sampling.output);
+    this.presentationComposer?.setPixelRatio(1);
+    this.presentationComposer?.setSize(size.width, size.height);
   }
 
   shutdown() {
