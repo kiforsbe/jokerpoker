@@ -25,6 +25,7 @@
 
 **Files:**
 - Modify: `src/rendering/shaders/CRTShader.js:3-112`
+- Modify: `src/rendering/RenderSystem.js:287-344`
 - Modify: `tests/renderSystemProfile.test.js:14-23`
 
 **Interfaces:**
@@ -80,6 +81,21 @@
   rgbShiftPixels / max(sourceResolution.x, 1.0)
   smoothNoise(uv * presentationResolution * 0.08 + vec2(time * 0.5, 0.0))
   ```
+
+  Update the existing CRT-pass construction and preset application so both
+  uniforms are initialized to the current logical framebuffer during this
+  compatibility step:
+
+  ```js
+  this.crtPass.uniforms.sourceResolution.value.set(size.width, size.height);
+  this.crtPass.uniforms.presentationResolution.value.set(size.width, size.height);
+  // In _applyCRTPreset:
+  uniforms.sourceResolution?.value.set(width, height);
+  uniforms.presentationResolution?.value.set(width, height);
+  ```
+
+  Keep both values equal in Task 1. Task 2 deliberately supplies the fitted
+  presentation dimensions only after it creates the presentation compositor.
 
 - [ ] **Step 4: Run the focused test to verify it passes**
 
