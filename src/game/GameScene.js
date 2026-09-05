@@ -47,6 +47,7 @@ class GameScene extends Scene {
     // composition and must not overwrite era-specific CRT calibration.
     if (renderSystem) {
       renderSystem.setOutlineParameters({
+        enabled: false,
         color: 0x00ff00,
         thickness: 1.5,
         depthSensitivity: 0.05

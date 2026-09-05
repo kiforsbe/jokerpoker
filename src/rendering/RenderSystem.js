@@ -41,7 +41,7 @@ class RenderSystem {
     this.initialized = false;
     this.useComposer = true;
     this.isDirectFallback = false;
-    this.useOutlineEffect = true;
+    this.useOutlineEffect = false;
     this.useCRTEffect = this.activeDisplayProfile?.postProcessing.crt.enabled ?? true;
 
     // Debug options
@@ -73,7 +73,7 @@ class RenderSystem {
         cornerRadius: 0.04
       },
       outline: {
-        enabled: true,
+        enabled: false,
         color: new THREE.Color(0x00ff00),
         thickness: 1.5,
         depthSensitivity: 0.05
@@ -484,15 +484,18 @@ class RenderSystem {
   }
 
   setOutlineParameters(params = {}) {
+    const { color, ...scalarParams } = params;
+    Object.assign(this.shaderParams.outline, scalarParams);
+    if (color !== undefined) this.shaderParams.outline.color.set(color);
+    if ('enabled' in params) this.useOutlineEffect = !!params.enabled;
     if (!this.outlinePass) return;
 
-    Object.assign(this.shaderParams.outline, params);
     const uniforms = this.outlinePass.uniforms;
 
-    if ('color' in params) uniforms.outlineColor.value.set(params.color);
+    if (color !== undefined) uniforms.outlineColor.value.copy(this.shaderParams.outline.color);
     if ('thickness' in params) uniforms.outlineThickness.value = params.thickness;
     if ('depthSensitivity' in params) uniforms.depthSensitivity.value = params.depthSensitivity;
-    if ('enabled' in params) this.outlinePass.enabled = params.enabled;
+    if ('enabled' in params) this.outlinePass.enabled = !!params.enabled;
   }
 
   update(deltaTime) {
@@ -602,6 +605,7 @@ class RenderSystem {
     if (newState === this.useOutlineEffect) return;
 
     this.useOutlineEffect = newState;
+    this.shaderParams.outline.enabled = newState;
     if (this.outlinePass) {
       this.outlinePass.enabled = newState;
     }

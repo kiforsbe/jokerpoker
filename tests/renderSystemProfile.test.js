@@ -12,6 +12,32 @@ import { CRTShader } from '../src/rendering/shaders/CRTShader.js';
 
 globalThis.window ??= {};
 
+test('depth outline is disabled by default', () => {
+  const system = new RenderSystem({ systems: new Map() });
+
+  assert.equal(system.useOutlineEffect, false);
+  assert.equal(system.shaderParams.outline.enabled, false);
+});
+
+test('outline debug toggle persists its state for pass rebuilds', () => {
+  const system = new RenderSystem({ systems: new Map() });
+  system.outlinePass = { enabled: false };
+
+  system.toggleOutlineEffect(true);
+
+  assert.equal(system.useOutlineEffect, true);
+  assert.equal(system.shaderParams.outline.enabled, true);
+  assert.equal(system.outlinePass.enabled, true);
+
+  system.outlinePass = { enabled: system.shaderParams.outline.enabled };
+  assert.equal(system.outlinePass.enabled, true);
+
+  system.toggleOutlineEffect(false);
+  assert.equal(system.useOutlineEffect, false);
+  assert.equal(system.shaderParams.outline.enabled, false);
+  assert.equal(system.outlinePass.enabled, false);
+});
+
 test('CRT shader separates native source dimensions from final presentation dimensions', () => {
   assert.ok(CRTShader.uniforms.sourceResolution);
   assert.ok(CRTShader.uniforms.presentationResolution);
