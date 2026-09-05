@@ -8,11 +8,13 @@
     "start": "npx http-server -p 5500 -c-1",
     "test": "node --test",
     "build:local": "node scripts/build.mjs local",
-    "build:vendored": "node scripts/build.mjs vendored"
+    "build:vendored": "node scripts/build.mjs vendored",
+    "art:courts": "node scripts/process-court-atlas.mjs"
   },
   "license": "UNLICENSED",
   "devDependencies": {
     "esbuild": "^0.28.1",
+    "pngjs": "^7.0.0",
     "three": "0.185.1"
   }
 }
