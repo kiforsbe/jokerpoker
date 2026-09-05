@@ -1,4 +1,6 @@
 import { drawCourtMaster, drawJokerMaster } from './courtIllustration.js';
+import { getCourtArtImage } from './courtArtAssets.js';
+import { drawCourtSprite } from './drawCourtSprite.js';
 import { pixelateIllustration } from './pixelateIllustration.js';
 
 export const ART_RASTERS = Object.freeze({
@@ -34,6 +36,13 @@ export function cardBackDetail(level) {
 }
 
 export function drawCourtArt(ctx, bounds, cardStyle, level, services = {}) {
+  const getImage = services.getImage ?? getCourtArtImage;
+  const drawSprite = services.drawSprite ?? drawCourtSprite;
+  const image = getImage(level, cardStyle.rank);
+  if (image) {
+    drawSprite(ctx, bounds, image, cardStyle.suitColor, cardStyle.suitSymbol);
+    return;
+  }
   const drawMaster = services.drawMaster ?? drawCourtMaster;
   const pixelate = services.pixelate ?? pixelateIllustration;
   const raster = getArtRaster(level);

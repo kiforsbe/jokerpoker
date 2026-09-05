@@ -693,6 +693,28 @@ test('direct texture update reapplies early-2000s linear sampling after an eight
   }
 });
 
+test('direct card texture sampling stays nearest after the early-2000s profile and repaint', () => {
+  const originalDocument = globalThis.document;
+  const context = { canvas: null, clearRect() {} };
+  const canvas = { width: 0, height: 0, getContext: () => context };
+  context.canvas = canvas;
+  globalThis.document = { createElement: () => canvas };
+  try {
+    const { system } = makeProfileSystem();
+    system.applyDisplayProfile(DISPLAY_PROFILES.early2000s);
+    const texture = system.createCanvasTexture(40, 20, () => {}, { sampling: 'nearest' });
+    const component = new RenderComponent();
+    component._renderSystem = system;
+    component.updateTexture({ material: { map: texture } }, () => {});
+
+    assert.equal(texture.userData.sampling, 'nearest');
+    assert.equal(texture.minFilter, THREE.NearestFilter);
+    assert.equal(texture.magFilter, THREE.NearestFilter);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
 test('configured rasterization rejects canvas textures without registration metadata', () => {
   const originalDocument = globalThis.document;
   const context = { canvas: null, clearRect() {} };

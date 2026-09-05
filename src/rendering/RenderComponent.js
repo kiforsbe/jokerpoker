@@ -136,7 +136,8 @@ class RenderComponent extends Component {
     const context = canvas.getContext('2d');
     context.clearRect(0, 0, canvas.width, canvas.height);
     drawCallback(context, canvas);
-    const sampling = this._renderSystem?.activeDisplayProfile?.sampling.textures;
+    const sampling = texture.userData?.sampling
+      ?? this._renderSystem?.activeDisplayProfile?.sampling.textures;
     if (sampling) {
       const filter = sampling === 'nearest' ? THREE.NearestFilter : THREE.LinearFilter;
       texture.minFilter = texture.magFilter = filter;

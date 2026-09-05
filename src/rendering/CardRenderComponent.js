@@ -101,7 +101,7 @@ class CardRenderComponent extends RenderComponent {
       CARD_TEXTURE_WIDTH,
       CARD_TEXTURE_HEIGHT,
       (context) => this.drawCard(context, cardComponent),
-      { worldWidth: this.CARD_WIDTH, label: 'Card' },
+      { worldWidth: this.CARD_WIDTH, label: 'Card', sampling: 'nearest' },
     );
 
     const cardGeometry = new THREE.PlaneGeometry(this.CARD_WIDTH, this.CARD_HEIGHT);

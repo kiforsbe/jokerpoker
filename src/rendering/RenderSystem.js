@@ -642,7 +642,7 @@ class RenderSystem {
   }
 
   createCanvasTexture(width, height, drawCallback, options = {}) {
-    const { worldWidth, label } = options;
+    const { worldWidth, label, sampling } = options;
     if (this.textureRasterizer
       && (!Number.isFinite(worldWidth) || worldWidth <= 0
         || typeof label !== 'string' || label.length === 0)) {
@@ -663,6 +663,7 @@ class RenderSystem {
     // treats them as linear and applies the output transfer a second time,
     // visibly lifting #2050c8 to roughly #6398e5.
     texture.colorSpace = THREE.SRGBColorSpace;
+    texture.userData.sampling = sampling;
     if (this.textureRasterizer) {
       this.textureRasterizer.register({
         label,
@@ -671,6 +672,7 @@ class RenderSystem {
         nativeWidth: width,
         nativeHeight: height,
         worldWidth,
+        sampling,
         draw: drawCallback,
       });
       return texture;
@@ -688,8 +690,8 @@ class RenderSystem {
       context.fillText('Error', width / 2, height / 2);
     }
 
-    const sampling = this.activeDisplayProfile?.sampling.textures ?? 'linear';
-    texture.minFilter = texture.magFilter = this._filterFor(sampling);
+    const textureSampling = sampling ?? this.activeDisplayProfile?.sampling.textures ?? 'linear';
+    texture.minFilter = texture.magFilter = this._filterFor(textureSampling);
     texture.needsUpdate = true;
     return texture;
   }

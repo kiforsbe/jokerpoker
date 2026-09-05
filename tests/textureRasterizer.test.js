@@ -82,6 +82,33 @@ test('applyDisplayProfile resizes and redraws all registered textures', () => {
   assert.equal(draws, 4);
 });
 
+test('nearest sampling registration stays nearest when the profile uses linear textures', () => {
+  const texture = fakeTexture();
+  const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties);
+  rasterizer.register({
+    canvas: texture.image,
+    texture,
+    worldWidth: 1,
+    sampling: 'nearest',
+    draw: () => {},
+  });
+
+  rasterizer.applyDisplayProfile(DISPLAY_PROFILES.early2000s);
+
+  assert.equal(texture.minFilter, 1003);
+  assert.equal(texture.magFilter, 1003);
+});
+
+test('rejects unknown texture sampling registrations', () => {
+  const texture = fakeTexture();
+  const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties);
+
+  assert.throws(
+    () => rasterizer.register({ canvas: texture.image, texture, worldWidth: 1, sampling: 'bicubic', draw: () => {} }),
+    /sampling must be nearest or linear/,
+  );
+});
+
 test('resizing a canvas texture releases its old GPU allocation before upload', () => {
   const texture = fakeTexture(fakeCanvas(240, 120));
   const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties);

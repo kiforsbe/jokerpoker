@@ -23,7 +23,11 @@ function asRegistration(descriptor) {
   if (!Number.isFinite(aspect) || aspect <= 0) {
     throw new TypeError('TextureRasterizer native aspect ratio must be positive');
   }
-  return { label, canvas, texture, worldWidth, draw, nativeAspectRatio: aspect };
+  const sampling = descriptor.sampling;
+  if (sampling !== undefined && sampling !== 'nearest' && sampling !== 'linear') {
+    throw new TypeError('TextureRasterizer sampling must be nearest or linear');
+  }
+  return { label, canvas, texture, worldWidth, draw, sampling, nativeAspectRatio: aspect };
 }
 
 export class TextureRasterizer {
@@ -89,7 +93,8 @@ export class TextureRasterizer {
       this._drawError(context, width, height);
       try { this.onDrawError(error, registration); } catch { /* diagnostics must not break rendering */ }
     }
-    const filter = this.profile.sampling.textures === 'nearest' ? NEAREST_FILTER : LINEAR_FILTER;
+    const sampling = registration.sampling ?? this.profile.sampling.textures;
+    const filter = sampling === 'nearest' ? NEAREST_FILTER : LINEAR_FILTER;
     texture.minFilter = texture.magFilter = filter;
     texture.generateMipmaps = false;
     texture.needsUpdate = true;
