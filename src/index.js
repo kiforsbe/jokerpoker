@@ -8,6 +8,7 @@ import GameLogger from './utils/GameLogger.js';
 import { GAME_VERSION } from './version.js';
 import { DisplayProfileController } from './rendering/DisplayProfileController.js';
 import { TextureRasterizer } from './rendering/TextureRasterizer.js';
+import { preloadPresentationAssets } from './assets/preloadPresentationAssets.js';
 
 class JokerPokerGame {
   constructor() {
@@ -126,12 +127,7 @@ class JokerPokerGame {
 
   async loadGame() {
     try {
-      // Ensure the retro canvas font has real glyphs before textures draw.
-      // If the CDN is unreachable the load rejects and we proceed with the
-      // monospace fallback — the game must still boot offline.
-      try {
-        await document.fonts.load('32px "VT323"');
-      } catch { /* fallback font is acceptable */ }
+      await preloadPresentationAssets({ logger: this.logger });
 
       // Create initial game scene
       this.gameScene = new GameScene();
