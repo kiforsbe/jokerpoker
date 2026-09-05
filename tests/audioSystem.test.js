@@ -11,6 +11,7 @@ function makeSystem() {
   const played = [];
   const sys = Object.create(AudioSystem.prototype);
   sys.initialized = true;
+  sys.attractMode = false;
   sys.sfx = { play(name, params) { played.push({ name, params }); } };
   return { sys, played };
 }
@@ -27,4 +28,22 @@ test('emit cardHeld only plays the hold sound when a card becomes held', () => {
   sys.emit('cardHeld', { index: 1, held: true });
   sys.emit('cardHeld', { index: 1, held: false });
   assert.deepEqual(played.map(p => p.name), ['hold']);
+});
+
+test('attract mode suppresses every effect and restores effects on exit', () => {
+  const { sys, played } = makeSystem();
+  let musicStops = 0;
+  sys.music = { stop() { musicStops++; } };
+
+  sys.setAttractMode(true);
+  sys.playEffect('shuffle');
+  sys.emit('win');
+
+  assert.equal(sys.attractMode, true);
+  assert.equal(musicStops, 1);
+  assert.deepEqual(played, []);
+
+  sys.setAttractMode(false);
+  sys.playEffect('shuffle');
+  assert.deepEqual(played.map(p => p.name), ['shuffle']);
 });

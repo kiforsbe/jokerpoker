@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { TexturePass } from 'three/addons/postprocessing/TexturePass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CRTShader } from './shaders/CRTShader.js';
 import { OutlineShader } from './shaders/OutlineShader.js';
 import { SCREEN_ASPECT, validateDisplayProfile } from './displayProfiles.js';
@@ -33,6 +34,7 @@ class RenderSystem {
     this.renderPass = null;
     this.outlinePass = null;
     this.crtPass = null;
+    this.outputPass = null;
     this.depthTexture = null;
 
     // Rendering flags
@@ -65,7 +67,10 @@ class RenderSystem {
         noise: 0.02,
         flicker: 0.01,
         vignetteIntensity: 0.3,
-        curvature: new THREE.Vector2(2.0, 2.0)
+        brightness: 1,
+        saturation: 1,
+        curvature: new THREE.Vector2(2.0, 2.0),
+        cornerRadius: 0.04
       },
       outline: {
         enabled: true,
@@ -256,7 +261,7 @@ class RenderSystem {
       this.outlinePass.uniforms.resolution.value.set(logicalSize.width, logicalSize.height);
       this.outlinePass.uniforms.cameraNear.value = this.activeScene?.camera?.near || 0.1;
       this.outlinePass.uniforms.cameraFar.value = this.activeScene?.camera?.far || 100;
-      this.outlinePass.uniforms.tDepth.value = this.depthTexture;
+      this.outlinePass.uniforms.tDepth.value = this.composer.readBuffer.depthTexture;
       this.outlinePass.uniforms.outlineColor.value = this.shaderParams.outline.color;
       this.outlinePass.uniforms.outlineThickness.value = this.shaderParams.outline.thickness;
       this.outlinePass.uniforms.depthSensitivity.value = this.shaderParams.outline.depthSensitivity;
@@ -280,15 +285,24 @@ class RenderSystem {
       this.crtPass.uniforms.noise.value = this.shaderParams.crt.noise;
       this.crtPass.uniforms.flicker.value = this.shaderParams.crt.flicker;
       this.crtPass.uniforms.vignetteIntensity.value = this.shaderParams.crt.vignetteIntensity;
+      this.crtPass.uniforms.brightness.value = this.shaderParams.crt.brightness;
+      this.crtPass.uniforms.saturation.value = this.shaderParams.crt.saturation;
       this.crtPass.uniforms.curvature.value.copy(this.shaderParams.crt.curvature);
+      this.crtPass.uniforms.cornerRadius.value = this.shaderParams.crt.cornerRadius;
       this.crtPass.enabled = this.shaderParams.crt.enabled;
       this.presentationComposer.addPass(this.crtPass);
+
+      // TexturePass and custom shaders operate on the renderer's linear
+      // working color. Convert to the configured display color space only
+      // once, at the very end of both the CRT and clean presentation paths.
+      this.outputPass = new OutputPass();
+      this.presentationComposer.addPass(this.outputPass);
 
       this.logger.log('DEBUG', 'RenderSystem: Post-processing setup complete', {
         logicalSize: `${logicalSize.width}x${logicalSize.height}`,
         presentationSize: `${presentationSize.width}x${presentationSize.height}`,
         pixelRatio,
-        passes: ['render', 'outline', 'crt']
+        passes: ['render', 'outline', 'crt', 'output']
       });
 
     } catch (error) {
@@ -312,6 +326,7 @@ class RenderSystem {
       ['presentationComposer', this.presentationComposer],
       ['presentationPass', this.presentationPass],
       ['crtPass', this.crtPass],
+      ['outputPass', this.outputPass],
       ['composer', this.composer],
       ['renderPass', this.renderPass],
       ['outlinePass', this.outlinePass],
@@ -343,6 +358,9 @@ class RenderSystem {
       noise: preset.noise,
       flicker: preset.flicker,
       vignetteIntensity: preset.vignetteIntensity,
+      brightness: preset.brightness,
+      saturation: preset.saturation,
+      cornerRadius: preset.cornerRadius,
     });
     this.shaderParams.crt.curvature.set(preset.curvature.x, preset.curvature.y);
     this.useCRTEffect = !!preset.enabled;
@@ -357,16 +375,39 @@ class RenderSystem {
     if (uniforms.noise) uniforms.noise.value = preset.noise;
     if (uniforms.flicker) uniforms.flicker.value = preset.flicker;
     if (uniforms.vignetteIntensity) uniforms.vignetteIntensity.value = preset.vignetteIntensity;
+    if (uniforms.brightness) uniforms.brightness.value = preset.brightness;
+    if (uniforms.saturation) uniforms.saturation.value = preset.saturation;
+    if (uniforms.cornerRadius) uniforms.cornerRadius.value = preset.cornerRadius;
     if (uniforms.curvature?.value.set) {
       uniforms.curvature.value.set(preset.curvature.x, preset.curvature.y);
     }
-    this.crtPass.enabled = !!preset.enabled;
+    this._setCRTPassMembership(!!preset.enabled);
+  }
+
+  _setCRTPassMembership(enabled) {
+    if (!this.crtPass) return;
+    this.crtPass.enabled = enabled;
+
+    const composer = this.presentationComposer;
+    const passes = composer?.passes;
+    if (!Array.isArray(passes)) return;
+
+    const isAttached = passes.includes(this.crtPass);
+    if (enabled && !isAttached) {
+      const outputIndex = passes.indexOf(this.outputPass);
+      if (outputIndex >= 0) composer.insertPass(this.crtPass, outputIndex);
+      else composer.addPass(this.crtPass);
+    }
+    if (!enabled && isAttached) composer.removePass(this.crtPass);
   }
 
   applyDisplayProfile(profile) {
     validateDisplayProfile(profile);
     this.activeDisplayProfile = profile;
     this.isDirectFallback = false;
+    // The clean high-resolution profile has no presentation effects at all.
+    // Render it directly so no CRT/compositor stage can affect the image.
+    this.useComposer = !!profile.postProcessing.crt.enabled;
     const logicalSize = this._logicalRenderSize();
     const presentationSize = this._presentationRenderSize();
 
@@ -413,16 +454,21 @@ class RenderSystem {
   setCRTParameters(params = {}) {
     if (!this.crtPass) return;
 
-    Object.assign(this.shaderParams.crt, params);
+    const { curvature, ...scalarParams } = params;
+    Object.assign(this.shaderParams.crt, scalarParams);
+    if (curvature) this.shaderParams.crt.curvature.copy(curvature);
     const uniforms = this.crtPass.uniforms;
 
     if ('scanlineIntensity' in params) uniforms.scanlineIntensity.value = params.scanlineIntensity;
     if ('vignetteIntensity' in params) uniforms.vignetteIntensity.value = params.vignetteIntensity;
     if ('noise' in params) uniforms.noise.value = params.noise;
     if ('flicker' in params) uniforms.flicker.value = params.flicker;
-    if ('curvature' in params) uniforms.curvature.value.copy(params.curvature);
+    if ('brightness' in params) uniforms.brightness.value = params.brightness;
+    if ('saturation' in params) uniforms.saturation.value = params.saturation;
+    if (curvature) uniforms.curvature.value.copy(this.shaderParams.crt.curvature);
     if ('scanlineDensity' in params) uniforms.scanlineDensity.value = params.scanlineDensity;
     if ('rgbShiftPixels' in params) uniforms.rgbShiftPixels.value = params.rgbShiftPixels;
+    if ('cornerRadius' in params) uniforms.cornerRadius.value = params.cornerRadius;
     if ('enabled' in params) this.setCRTEffectEnabled(params.enabled);
   }
 
@@ -430,10 +476,11 @@ class RenderSystem {
   // and disabled for the clean high-resolution mode. Keep the stored state
   // in sync even before the post-processing pass has been created.
   setCRTEffectEnabled(enabled) {
-    const next = !!enabled;
+    const profileAllowsCRT = this.activeDisplayProfile?.postProcessing?.crt?.enabled !== false;
+    const next = !!enabled && profileAllowsCRT;
     this.useCRTEffect = next;
     this.shaderParams.crt.enabled = next;
-    if (this.crtPass) this.crtPass.enabled = next;
+    this._setCRTPassMembership(next);
   }
 
   setOutlineParameters(params = {}) {
@@ -462,6 +509,13 @@ class RenderSystem {
 
       // Perform rendering
       if (this.useComposer && this.composer && this.presentationComposer && this.presentationPass) {
+        // EffectComposer swaps its read/write targets after the outline pass.
+        // Sample the depth texture attached to the target the RenderPass will
+        // fill this frame; keeping a fixed depth texture creates a WebGL
+        // framebuffer feedback loop on alternating frames.
+        if (this.outlinePass?.uniforms?.tDepth) {
+          this.outlinePass.uniforms.tDepth.value = this.composer.readBuffer.depthTexture;
+        }
         this.composer.render(deltaTime);
         this.presentationPass.map = this.composer.readBuffer.texture;
         this.presentationComposer.render(deltaTime);
@@ -577,7 +631,7 @@ class RenderSystem {
     });
 
     // Ensure composer is enabled if using CRT effect
-    if (newState && !this.useComposer) {
+    if (this.useCRTEffect && !this.useComposer) {
       this.toggleComposer(true);
     }
 
@@ -601,6 +655,10 @@ class RenderSystem {
     canvas.height = height;
 
     const texture = new THREE.CanvasTexture(canvas);
+    // Canvas 2D colors are authored in sRGB. Without this annotation Three.js
+    // treats them as linear and applies the output transfer a second time,
+    // visibly lifting #2050c8 to roughly #6398e5.
+    texture.colorSpace = THREE.SRGBColorSpace;
     if (this.textureRasterizer) {
       this.textureRasterizer.register({
         label,

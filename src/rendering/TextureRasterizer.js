@@ -72,6 +72,11 @@ export class TextureRasterizer {
     const height = Math.max(1, Math.round(width * nativeAspectRatio));
     const resized = canvas.width !== width || canvas.height !== height;
     if (resized) {
+      // CanvasTexture keeps its previous GPU allocation when the same canvas
+      // object changes size. Release that allocation so Three.js uses
+      // texImage2D for the new dimensions instead of an overflowing
+      // texSubImage2D upload.
+      texture.dispose?.();
       canvas.width = width;
       canvas.height = height;
     }

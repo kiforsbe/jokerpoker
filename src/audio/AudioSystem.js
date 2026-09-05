@@ -10,6 +10,8 @@ class AudioSystem {
     this.masterGain = null;
     this.components = new Set();
     this.volume = 0.3;
+    this.musicEnabled = false;
+    this.attractMode = false;
     this.initializationPromise = null;
     this.logger = new GameLogger();
 
@@ -165,8 +167,13 @@ class AudioSystem {
     Object.keys(SFX_PARAMS).forEach(n => this.sfx._buffer(n));
   }
 
+  setAttractMode(enabled) {
+    this.attractMode = !!enabled;
+    if (this.attractMode) this.music?.stop?.();
+  }
+
   playEffect(name, params) {
-    if (!this.initialized || !this.sfx) return;
+    if (this.attractMode || !this.initialized || !this.sfx) return;
     this.sfx.play(name, params);
   }
 

@@ -48,21 +48,23 @@ test('contains sampling, card-art, and CRT settings for each era', () => {
   assert.equal(DISPLAY_PROFILES.eighties.postProcessing.crt.enabled, true);
   assert.equal(DISPLAY_PROFILES.nineties.postProcessing.crt.enabled, true);
   assert.equal(DISPLAY_PROFILES.early2000s.postProcessing.crt.enabled, false);
-  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.scanlineDensity), [0.50, 0.60, 0]);
-  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.scanlineIntensity), [0.16, 0.08, 0]);
-  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.rgbShiftPixels), [1.50, 0.60, 0]);
-  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.noise), [0.025, 0.008, 0]);
+  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.scanlineDensity), [0.45, 0.8, 0]);
+  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.scanlineIntensity), [0.35, 0.14, 0]);
+  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.rgbShiftPixels), [1.50, 0.45, 0]);
+  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.noise), [0, 0.004, 0]);
   assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.flicker), [0.012, 0.003, 0]);
-  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.vignetteIntensity), [0.18, 0.08, 0]);
-  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.curvature), [{ x: 12, y: 12 }, { x: 24, y: 24 }, { x: 1000, y: 1000 }]);
+  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.vignetteIntensity), [0.07, 0.03, 0]);
+  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.curvature), [{ x: 4, y: 4 }, { x: 6.5, y: 6.5 }, { x: 1000, y: 1000 }]);
+  assert.deepEqual(ids.map((id) => DISPLAY_PROFILES[id].postProcessing.crt.cornerRadius), [0.15, 0.035, 0]);
   const eighties = DISPLAY_PROFILES.eighties.postProcessing.crt;
   const nineties = DISPLAY_PROFILES.nineties.postProcessing.crt;
-  for (const key of ['scanlineIntensity', 'rgbShiftPixels', 'noise', 'flicker', 'vignetteIntensity']) {
+  for (const key of ['scanlineIntensity', 'rgbShiftPixels', 'flicker', 'vignetteIntensity']) {
     assert.ok(nineties[key] < eighties[key], `${key} should be cleaner in the 1990s`);
   }
   assert.deepEqual(DISPLAY_PROFILES.early2000s.postProcessing.crt, {
     enabled: false, scanlineDensity: 0, scanlineIntensity: 0, rgbShiftPixels: 0,
-    noise: 0, flicker: 0, vignetteIntensity: 0, curvature: { x: 1000, y: 1000 },
+    noise: 0, flicker: 0, vignetteIntensity: 0, brightness: 1, saturation: 1,
+    curvature: { x: 1000, y: 1000 }, cornerRadius: 0,
   });
 });
 

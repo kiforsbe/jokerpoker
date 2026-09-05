@@ -19,11 +19,14 @@ export class AudioDirector {
 
   // Dip the tuplaus tune under a sound effect; it resumes right after.
   _duckMusic(seconds) {
-    if (this._tuplausActive) this.audio.music?.duck?.(seconds);
+    if (this._tuplausActive && this._musicReady()) this.audio.music.duck?.(seconds);
   }
 
   _musicReady() {
-    return this.audio.initialized && this.audio.music;
+    return this.audio.musicEnabled !== false
+      && !this.audio.attractMode
+      && !!this.audio.initialized
+      && !!this.audio.music;
   }
 
   _sfx(name, params) {
@@ -87,7 +90,7 @@ export class AudioDirector {
       this._playCountUp(amount);
     });
     gm.addEventListener('doubleStarted', () => {
-      this._tuplausActive = true;
+      this._tuplausActive = this._musicReady();
       this._playTuplaus();
     });
     gm.addEventListener('doubleResult', ({ outcome }) => {
@@ -97,7 +100,7 @@ export class AudioDirector {
         // a brief dip, then the loop continues at the faster streak tempo.
         this._sfx('doubleWin');
         this._duckMusic(0.7);
-        this.audio.music?.setRate?.(this._tuplausRate());
+        if (this._musicReady()) this.audio.music.setRate?.(this._tuplausRate());
       } else {
         this._doubleStreak = 0;
         this._tuplausActive = false;
@@ -109,6 +112,7 @@ export class AudioDirector {
       }
     });
     gm.addEventListener('stateChanged', ({ state }) => {
+      this.audio.setAttractMode?.(state === 'attract');
       if (state === 'dealing') this._tuplausActive = false;
       if (state === 'attract') {
         this._tuplausActive = false;

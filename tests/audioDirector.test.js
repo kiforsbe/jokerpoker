@@ -161,3 +161,29 @@ test('a double win with audio not ready does not throw', () => {
   gm.emit('doubleResult', { outcome: 'win' }); // must not throw
   assert.ok(played.some(p => p.name === 'doubleWin'));
 });
+
+test('music stays off when disabled by default', () => {
+  const { audio, gm, music } = makeFakes();
+  audio.musicEnabled = false;
+  new AudioDirector(audio, gm);
+
+  gm.emit('doubleStarted', {});
+  gm.emit('win', { result: { rank: 9 } });
+  gm.emit('collected', { amount: 100 });
+  gm.emit('stateChanged', { state: 'attract' });
+
+  assert.deepEqual(music.sequences, []);
+  assert.deepEqual(music.rates, []);
+});
+
+test('state changes centrally enable and disable attract-mode audio suppression', () => {
+  const { audio, gm } = makeFakes();
+  const changes = [];
+  audio.setAttractMode = enabled => changes.push(enabled);
+  new AudioDirector(audio, gm);
+
+  gm.emit('stateChanged', { state: 'attract' });
+  gm.emit('stateChanged', { state: 'idle' });
+
+  assert.deepEqual(changes, [true, false]);
+});

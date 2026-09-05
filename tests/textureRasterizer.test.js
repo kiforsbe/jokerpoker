@@ -23,7 +23,14 @@ function fakeCanvas(width = 40, height = 20) {
 }
 
 function fakeTexture(canvas = fakeCanvas()) {
-  return { image: canvas, minFilter: null, magFilter: null, needsUpdate: false };
+  return {
+    image: canvas,
+    minFilter: null,
+    magFilter: null,
+    needsUpdate: false,
+    disposeCalls: 0,
+    dispose() { this.disposeCalls++; },
+  };
 }
 
 test('sizes registered textures from world width at every display density', () => {
@@ -73,6 +80,21 @@ test('applyDisplayProfile resizes and redraws all registered textures', () => {
   assert.deepEqual([first.image.width, first.image.height], [300, 150]);
   assert.deepEqual([second.image.width, second.image.height], [75, 150]);
   assert.equal(draws, 4);
+});
+
+test('resizing a canvas texture releases its old GPU allocation before upload', () => {
+  const texture = fakeTexture(fakeCanvas(240, 120));
+  const rasterizer = new TextureRasterizer(DISPLAY_PROFILES.eighties);
+  rasterizer.register({ canvas: texture.image, texture, nativeWidth: 40, nativeHeight: 20, worldWidth: 1, draw: () => {} });
+  assert.equal(texture.disposeCalls, 0);
+
+  rasterizer.redraw();
+  assert.equal(texture.disposeCalls, 0);
+
+  rasterizer.applyDisplayProfile(DISPLAY_PROFILES.nineties);
+  assert.equal(texture.disposeCalls, 1);
+  assert.deepEqual([texture.image.width, texture.image.height], [300, 150]);
+  assert.equal(texture.needsUpdate, true);
 });
 
 test('unregister is idempotent and prevents later redraws', () => {

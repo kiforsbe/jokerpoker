@@ -15,10 +15,22 @@ globalThis.window ??= {};
 test('CRT shader separates native source dimensions from final presentation dimensions', () => {
   assert.ok(CRTShader.uniforms.sourceResolution);
   assert.ok(CRTShader.uniforms.presentationResolution);
+  assert.ok(CRTShader.uniforms.brightness);
+  assert.ok(CRTShader.uniforms.saturation);
   assert.equal(CRTShader.uniforms.resolution, undefined);
   assert.match(CRTShader.fragmentShader, /sourceResolution\.y\s*\*\s*scanlineDensity/);
   assert.match(CRTShader.fragmentShader, /rgbShiftPixels\s*\/\s*max\(sourceResolution\.x/);
   assert.match(CRTShader.fragmentShader, /smoothNoise\(uv\s*\*\s*presentationResolution/);
+  assert.match(CRTShader.fragmentShader, /uniform\s+float\s+cornerRadius/);
+  assert.match(CRTShader.fragmentShader, /roundedScreenMask\s*\(/);
+  assert.match(CRTShader.fragmentShader, /1\.0\s*\+\s*scanlineIntensity\s*\*\s*scanline/);
+  assert.doesNotMatch(CRTShader.fragmentShader, /col\s*\*=\s*1\.0\s*-\s*\(scanlineIntensity/);
+  assert.match(CRTShader.fragmentShader, /gl_FragColor\s*=\s*vec4\(col,\s*1\.0\)/);
+});
+
+test('CRT RGB separation avoids sampler parameters rejected by WebGL drivers', () => {
+  assert.doesNotMatch(CRTShader.fragmentShader, /rgbShift\s*\(\s*sampler2D/);
+  assert.match(CRTShader.fragmentShader, /vec3\s+rgbShift\s*\(\s*vec2\s+uv/);
 });
 
 function makeProfileSystem(container = { clientWidth: 1200, clientHeight: 700 }) {
@@ -59,7 +71,13 @@ function makeProfileSystem(container = { clientWidth: 1200, clientHeight: 700 })
       noise: { value: 0 },
       flicker: { value: 0 },
       vignetteIntensity: { value: 0 },
-      curvature: { value: { set: (x, y) => calls.push(['curvature', x, y]) } },
+      brightness: { value: 0 },
+      saturation: { value: 0 },
+      curvature: { value: {
+        set: (x, y) => calls.push(['curvature', x, y]),
+        copy: ({ x, y }) => calls.push(['curvatureCopy', x, y]),
+      } },
+      cornerRadius: { value: 0 },
     },
   };
   return { system, calls };
@@ -89,10 +107,11 @@ test('applies exact logical and presentation sizes, filters, composers, and CRT 
   assert.equal(system.composer.writeBuffer.texture.magFilter, THREE.NearestFilter);
   assert.equal(system.composer.renderTarget1.texture.needsUpdate, true);
   assert.equal(system.crtPass.enabled, true);
-  assert.equal(system.crtPass.uniforms.scanlineDensity.value, 0.6);
-  assert.equal(system.crtPass.uniforms.scanlineIntensity.value, 0.08);
-  assert.equal(system.crtPass.uniforms.rgbShiftPixels.value, 0.6);
-  assert.ok(calls.some(call => call.join(':') === 'curvature:24:24'));
+  assert.equal(system.crtPass.uniforms.scanlineDensity.value, 0.8);
+  assert.equal(system.crtPass.uniforms.scanlineIntensity.value, 0.14);
+  assert.equal(system.crtPass.uniforms.rgbShiftPixels.value, 0.45);
+  assert.ok(calls.some(call => call.join(':') === 'curvature:6.5:6.5'));
+  assert.equal(system.crtPass.uniforms.cornerRadius.value, 0.035);
 });
 
 test('CRT presets set every generic uniform and fully reset disabled early-2000s output', () => {
@@ -102,19 +121,46 @@ test('CRT presets set every generic uniform and fully reset disabled early-2000s
   assert.equal(system.crtPass.enabled, true);
   assert.ok(calls.some(call => call.join(':') === 'crtSourceResolution:640:480'));
   assert.ok(calls.some(call => call.join(':') === 'crtPresentationResolution:932:699'));
-  assert.equal(system.crtPass.uniforms.scanlineDensity.value, 0.5);
-  assert.equal(system.crtPass.uniforms.scanlineIntensity.value, 0.16);
+  assert.equal(system.crtPass.uniforms.scanlineDensity.value, 0.45);
+  assert.equal(system.crtPass.uniforms.scanlineIntensity.value, 0.35);
   assert.equal(system.crtPass.uniforms.rgbShiftPixels.value, 1.5);
-  assert.equal(system.crtPass.uniforms.noise.value, 0.025);
+  assert.equal(system.crtPass.uniforms.noise.value, 0);
   assert.equal(system.crtPass.uniforms.flicker.value, 0.012);
-  assert.equal(system.crtPass.uniforms.vignetteIntensity.value, 0.18);
+  assert.equal(system.crtPass.uniforms.vignetteIntensity.value, 0.07);
+  assert.equal(system.crtPass.uniforms.brightness.value, 1);
+  assert.equal(system.crtPass.uniforms.saturation.value, 1);
+  assert.equal(system.crtPass.uniforms.cornerRadius.value, 0.15);
 
   system.applyDisplayProfile(DISPLAY_PROFILES.early2000s);
   assert.equal(system.crtPass.enabled, false);
-  for (const uniform of ['scanlineDensity', 'scanlineIntensity', 'rgbShiftPixels', 'noise', 'flicker', 'vignetteIntensity']) {
+  for (const uniform of ['scanlineDensity', 'scanlineIntensity', 'rgbShiftPixels', 'noise', 'flicker', 'vignetteIntensity', 'cornerRadius']) {
     assert.equal(system.crtPass.uniforms[uniform].value, 0, uniform);
   }
+  assert.equal(system.crtPass.uniforms.brightness.value, 1);
+  assert.equal(system.crtPass.uniforms.saturation.value, 1);
   assert.ok(calls.some(call => call.join(':') === 'curvature:1000:1000'));
+});
+
+test('live CRT tuning updates brightness and saturation uniforms', () => {
+  const { system } = makeProfileSystem();
+  system.activeDisplayProfile = DISPLAY_PROFILES.eighties;
+
+  system.setCRTParameters({ brightness: 1.2, saturation: 1.35 });
+
+  assert.equal(system.crtPass.uniforms.brightness.value, 1.2);
+  assert.equal(system.crtPass.uniforms.saturation.value, 1.35);
+});
+
+test('live curvature tuning preserves the mutable vector used by era changes', () => {
+  const { system } = makeProfileSystem();
+  const curvature = system.shaderParams.crt.curvature;
+
+  system.setCRTParameters({ curvature: { x: 7.25, y: 8.5 } });
+
+  assert.equal(system.shaderParams.crt.curvature, curvature);
+  assert.deepEqual(curvature.toArray(), [7.25, 8.5]);
+  system.applyDisplayProfile(DISPLAY_PROFILES.nineties);
+  assert.deepEqual(curvature.toArray(), [6.5, 6.5]);
 });
 
 test('all display profiles select fixed logical framebuffers and generic output sampling', () => {
@@ -247,12 +293,14 @@ test('direct fallback ignores composer and effect re-enable requests', () => {
 test('frame routing presents the current logical composer texture', () => {
   const system = new RenderSystem({ systems: new Map() });
   const calls = [];
+  const logicalDepth = { id: 'logical-depth' };
   system.initialized = true;
   system.activeScene = { camera: {} };
   system.composer = {
-    readBuffer: { texture: { id: 'logical-frame' } },
+    readBuffer: { texture: { id: 'logical-frame' }, depthTexture: logicalDepth },
     render: () => calls.push('logical'),
   };
+  system.outlinePass = { uniforms: { tDepth: { value: null } } };
   system.presentationPass = { map: null };
   system.presentationComposer = { render: () => calls.push('presentation') };
   system.renderer = { clear: () => calls.push('clear') };
@@ -261,8 +309,38 @@ test('frame routing presents the current logical composer texture', () => {
   system.update(16);
 
   assert.deepEqual(calls, ['clear', 'logical', 'presentation']);
+  assert.equal(system.outlinePass.uniforms.tDepth.value, logicalDepth);
   assert.equal(system.presentationPass.map.id, 'logical-frame');
   assert.equal(system.crtPass.uniforms.time.value, 0.016);
+});
+
+test('early-2000s bypasses the presentation compositor and removes its CRT shader', () => {
+  const { system } = makeProfileSystem();
+  system.outputPass = { isOutputPass: true };
+  system.presentationComposer.passes = [system.presentationPass, system.crtPass, system.outputPass];
+  system.presentationComposer.addPass = pass => system.presentationComposer.passes.push(pass);
+  system.presentationComposer.insertPass = (pass, index) => system.presentationComposer.passes.splice(index, 0, pass);
+  system.presentationComposer.removePass = pass => system.presentationComposer.passes.splice(
+    system.presentationComposer.passes.indexOf(pass),
+    1,
+  );
+
+  system.applyDisplayProfile(DISPLAY_PROFILES.early2000s);
+
+  assert.equal(system.useComposer, false);
+  assert.deepEqual(system.presentationComposer.passes, [system.presentationPass, system.outputPass]);
+  assert.equal(system.crtPass.enabled, false);
+
+  system.toggleCRTEffect(true);
+  assert.equal(system.useComposer, false);
+  assert.equal(system.crtPass.enabled, false);
+  assert.deepEqual(system.presentationComposer.passes, [system.presentationPass, system.outputPass]);
+
+  system.applyDisplayProfile(DISPLAY_PROFILES.eighties);
+
+  assert.equal(system.useComposer, true);
+  assert.deepEqual(system.presentationComposer.passes, [system.presentationPass, system.crtPass, system.outputPass]);
+  assert.equal(system.crtPass.enabled, true);
 });
 
 test('context restoration awaits rebuild, reapplies active profile, then resumes engine', async () => {
@@ -341,6 +419,7 @@ test('shutdown disposes both composers and their passes once', () => {
   system.presentationComposer = disposable('presentationComposer');
   system.presentationPass = disposable('presentationPass');
   system.crtPass = disposable('crtPass');
+  system.outputPass = disposable('outputPass');
   system.composer = disposable('composer');
   system.renderPass = disposable('renderPass');
   system.outlinePass = disposable('outlinePass');
@@ -352,6 +431,7 @@ test('shutdown disposes both composers and their passes once', () => {
     'presentationComposer',
     'presentationPass',
     'crtPass',
+    'outputPass',
     'composer',
     'renderPass',
     'outlinePass',
@@ -359,6 +439,7 @@ test('shutdown disposes both composers and their passes once', () => {
   assert.equal(system.presentationComposer, null);
   assert.equal(system.presentationPass, null);
   assert.equal(system.crtPass, null);
+  assert.equal(system.outputPass, null);
   assert.equal(system.composer, null);
   assert.equal(system.renderPass, null);
   assert.equal(system.outlinePass, null);
@@ -377,6 +458,7 @@ test('post-processing setup failure enters direct rendering at the requested pro
   };
   system.presentationPass = { dispose: () => calls.push('presentationPass') };
   system.crtPass = { dispose: () => calls.push('crtPass') };
+  system.outputPass = { dispose: () => calls.push('outputPass') };
   system.composer = { dispose: () => calls.push('composer') };
   system.renderPass = { dispose: () => calls.push('renderPass') };
   system.outlinePass = { dispose: () => calls.push('outlinePass') };
@@ -397,6 +479,7 @@ test('post-processing setup failure enters direct rendering at the requested pro
     'presentationComposer',
     'presentationPass',
     'crtPass',
+    'outputPass',
     'composer',
     'renderPass',
     'outlinePass',
@@ -404,6 +487,7 @@ test('post-processing setup failure enters direct rendering at the requested pro
   assert.equal(system.presentationComposer, null);
   assert.equal(system.presentationPass, null);
   assert.equal(system.crtPass, null);
+  assert.equal(system.outputPass, null);
   assert.equal(system.composer, null);
   assert.equal(system.renderPass, null);
   assert.equal(system.outlinePass, null);
@@ -531,6 +615,7 @@ test('canvas textures register mutable raster handles and components release the
       { worldWidth: 1, label: 'Lifecycle test' },
     );
     const handle = texture.userData.rasterHandle;
+    assert.equal(texture.colorSpace, THREE.SRGBColorSpace);
     assert.equal(handle.label, 'Lifecycle test');
     assert.deepEqual([canvas.width, canvas.height], [240, 120]);
 

@@ -28,17 +28,34 @@ const DEFS = [
 const ROW1 = ['hold0', 'hold1', 'hold2', 'hold3', 'hold4', 'play'];
 const ROW2 = ['collect', 'low', 'high', 'double', 'bet'];
 
+const CRT_TUNER_CONTROLS = Object.freeze([
+  { key: 'curvatureX', label: 'Curve X (lower = more)', min: 2.5, max: 20, step: 0.1 },
+  { key: 'curvatureY', label: 'Curve Y (lower = more)', min: 2.5, max: 20, step: 0.1 },
+  { key: 'cornerRadius', label: 'Corner radius', min: 0, max: 0.15, step: 0.005 },
+  { key: 'scanlineDensity', label: 'Scanline density', min: 0, max: 2, step: 0.05 },
+  { key: 'scanlineIntensity', label: 'Scanline strength', min: 0, max: 0.6, step: 0.01 },
+  { key: 'rgbShiftPixels', label: 'RGB separation', min: 0, max: 3, step: 0.05 },
+  { key: 'noise', label: 'Noise', min: 0, max: 0.08, step: 0.001 },
+  { key: 'flicker', label: 'Flicker', min: 0, max: 0.03, step: 0.001 },
+  { key: 'vignetteIntensity', label: 'Edge vignette', min: 0, max: 0.3, step: 0.01 },
+  { key: 'brightness', label: 'Brightness', min: 0.5, max: 1.75, step: 0.01 },
+  { key: 'saturation', label: 'Saturation', min: 0.5, max: 2, step: 0.01 },
+]);
+
 export class CabinetPanel {
   constructor(gameManager) {
     this.gm = gameManager;
     this.displayProfiles = gameManager.engine.systems.get('displayProfile');
+    this.renderSystem = gameManager.engine.systems.get('render');
     this.buttons = new Map();
+    this.crtInputs = new Map();
     this._injectStyles();
     this._build();
     this._buildModeSwitch();
     this._buildFullscreenSwitch();
     this._buildLanguageSwitch();
     this._buildResolutionSwitch();
+    this._buildCRTTuner();
     this._bindKeyboard();
     gameManager.addEventListener('stateChanged', () => this._refresh());
     gameManager.addEventListener('winChanged', () => this._refresh());
@@ -93,6 +110,26 @@ export class CabinetPanel {
       #lang, #res { right: 92px; font-size: 12px; font-weight: bold;
         letter-spacing: 0.5px; }
       #res { right: 134px; }
+      #crt-tuner-toggle { right: 176px; width: 44px; font-size: 11px; }
+      #crt-tuner-toggle.inactive { opacity: 0.35; }
+      #crt-tuner { position: fixed; top: 46px; right: 8px; z-index: 60;
+        width: min(330px, calc(100vw - 16px)); max-height: calc(100dvh - 62px);
+        overflow-y: auto; box-sizing: border-box; padding: 12px;
+        border: 1px solid rgba(180, 195, 230, 0.38); border-radius: 9px;
+        background: rgba(8, 10, 18, 0.96); color: #e8e8e4;
+        box-shadow: 0 10px 36px rgba(0,0,0,0.65); font: 12px/1.25 monospace; }
+      #crt-tuner[hidden] { display: none; }
+      #crt-tuner h2 { margin: 0 0 4px; font-size: 15px; }
+      #crt-tuner .crt-status { margin-bottom: 10px; color: #9aa2bd; }
+      #crt-tuner .crt-row { display: grid; grid-template-columns: 1fr 118px 48px;
+        gap: 7px; align-items: center; min-height: 26px; }
+      #crt-tuner .crt-row input { width: 118px; accent-color: #54e06a; }
+      #crt-tuner .crt-row output { text-align: right; color: #7cd8e6; }
+      #crt-tuner .crt-actions { display: flex; gap: 8px; margin-top: 11px; }
+      #crt-tuner .crt-actions button { flex: 1; min-height: 30px; border: 0;
+        border-radius: 5px; background: #252a3b; color: #e8e8e4; cursor: pointer; }
+      #crt-tuner .crt-actions button:hover { background: #39415d; }
+      #crt-tuner.crt-disabled .crt-row { opacity: 0.35; }
     `;
     document.head.appendChild(s);
   }
@@ -155,13 +192,164 @@ export class CabinetPanel {
     document.body.appendChild(b);
   }
 
+  static applyCRTTuning(renderSystem, profile, key, rawValue) {
+    if (!profile?.postProcessing?.crt?.enabled || !renderSystem?.setCRTParameters) return false;
+    const control = CRT_TUNER_CONTROLS.find((item) => item.key === key);
+    const numericValue = Number.parseFloat(rawValue);
+    if (!control || !Number.isFinite(numericValue)) return false;
+    const value = Math.min(control.max, Math.max(control.min, numericValue));
+
+    if (key === 'curvatureX' || key === 'curvatureY') {
+      const current = renderSystem.shaderParams.crt.curvature;
+      renderSystem.setCRTParameters({
+        curvature: {
+          x: key === 'curvatureX' ? value : current.x,
+          y: key === 'curvatureY' ? value : current.y,
+        },
+      });
+    } else {
+      renderSystem.setCRTParameters({ [key]: value });
+    }
+    return true;
+  }
+
+  _buildCRTTuner() {
+    const toggle = document.createElement('button');
+    toggle.id = 'crt-tuner-toggle';
+    toggle.className = 'ui-chip';
+    toggle.textContent = 'CRT';
+
+    const panel = document.createElement('section');
+    panel.id = 'crt-tuner';
+    panel.hidden = true;
+    panel.innerHTML = '<h2>CRT filter</h2><div class="crt-status"></div>';
+    const status = panel.querySelector('.crt-status');
+
+    for (const control of CRT_TUNER_CONTROLS) {
+      const row = document.createElement('label');
+      row.className = 'crt-row';
+      const name = document.createElement('span');
+      name.textContent = control.label;
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = String(control.min);
+      input.max = String(control.max);
+      input.step = String(control.step);
+      const value = document.createElement('output');
+      input.addEventListener('input', () => {
+        const profile = this.displayProfiles.getDisplayProfile();
+        if (CabinetPanel.applyCRTTuning(this.renderSystem, profile, control.key, input.value)) {
+          value.textContent = this._formatCRTValue(control, Number(input.value));
+        }
+      });
+      row.append(name, input, value);
+      panel.appendChild(row);
+      this.crtInputs.set(control.key, { input, value, control });
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'crt-actions';
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.textContent = 'Reset era';
+    reset.addEventListener('click', () => this._resetCRTTuner());
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.textContent = 'Copy values';
+    copy.addEventListener('click', () => this._copyCRTTunerValues(copy));
+    actions.append(reset, copy);
+    panel.appendChild(actions);
+
+    toggle.addEventListener('click', () => {
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) this._syncCRTTuner(this.displayProfiles.getDisplayProfile());
+    });
+
+    const render = (profile) => this._syncCRTTuner(profile);
+    this._offCRTTunerProfile = this.displayProfiles.onDisplayProfileChanged(render);
+    this._crtTunerToggle = toggle;
+    this._crtTunerPanel = panel;
+    this._crtTunerStatus = status;
+    document.body.append(toggle, panel);
+    render(this.displayProfiles.getDisplayProfile());
+  }
+
+  _formatCRTValue(control, value) {
+    const decimals = Math.max(0, (String(control.step).split('.')[1] || '').length);
+    return value.toFixed(decimals);
+  }
+
+  _valueForCRTControl(key, params) {
+    if (key === 'curvatureX') return params.curvature.x;
+    if (key === 'curvatureY') return params.curvature.y;
+    return params[key];
+  }
+
+  _syncCRTTuner(profile) {
+    const enabled = !!profile?.postProcessing?.crt?.enabled;
+    this._crtTunerToggle?.classList.toggle('inactive', !enabled);
+    if (this._crtTunerToggle) {
+      this._crtTunerToggle.title = enabled
+        ? `Tune ${profile.label} CRT filter`
+        : `${profile.label}: CRT filter is disabled`;
+    }
+    this._crtTunerPanel?.classList.toggle('crt-disabled', !enabled);
+    if (this._crtTunerStatus) {
+      this._crtTunerStatus.textContent = enabled
+        ? `${profile.label} · live shader values`
+        : `${profile.label} · clean output, CRT disabled`;
+    }
+
+    const params = this.renderSystem?.shaderParams?.crt ?? profile.postProcessing.crt;
+    for (const [key, elements] of this.crtInputs) {
+      const numericValue = this._valueForCRTControl(key, params);
+      elements.input.value = String(numericValue);
+      elements.input.disabled = !enabled;
+      elements.value.textContent = this._formatCRTValue(elements.control, numericValue);
+    }
+  }
+
+  _resetCRTTuner() {
+    const profile = this.displayProfiles.getDisplayProfile();
+    if (!profile.postProcessing.crt.enabled) return;
+    const preset = profile.postProcessing.crt;
+    this.renderSystem.setCRTParameters({
+      ...preset,
+      curvature: { ...preset.curvature },
+    });
+    this._syncCRTTuner(profile);
+  }
+
+  async _copyCRTTunerValues(button) {
+    const profile = this.displayProfiles.getDisplayProfile();
+    const params = this.renderSystem.shaderParams.crt;
+    const values = { profile: profile.id };
+    for (const { key } of CRT_TUNER_CONTROLS) {
+      values[key] = this._valueForCRTControl(key, params);
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(values, null, 2));
+      button.textContent = 'Copied';
+    } catch {
+      button.textContent = 'Copy failed';
+    }
+    setTimeout(() => { button.textContent = 'Copy values'; }, 1200);
+  }
+
   destroy() {
     this._offDisplayProfile?.();
     this._offDisplayProfile = null;
+    this._offCRTTunerProfile?.();
+    this._offCRTTunerProfile = null;
     if (this._resolutionChip?.parentNode) {
       this._resolutionChip.parentNode.removeChild(this._resolutionChip);
     }
     this._resolutionChip = null;
+    this._crtTunerToggle?.remove();
+    this._crtTunerPanel?.remove();
+    this._crtTunerToggle = null;
+    this._crtTunerPanel = null;
+    this.crtInputs.clear();
   }
 
   // Fullscreen toggle chip beside the mode chip. Hidden where page

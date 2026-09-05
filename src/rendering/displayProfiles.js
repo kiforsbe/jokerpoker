@@ -29,9 +29,10 @@ const profileFixtures = {
     sampling: { scene: 'nearest', textures: 'nearest', output: 'pixelated' },
     cardArtLevel: 'coarse-pixel',
     postProcessing: { crt: {
-      enabled: true, scanlineDensity: 0.50, scanlineIntensity: 0.16,
-      rgbShiftPixels: 1.50, noise: 0.025, flicker: 0.012,
-      vignetteIntensity: 0.18, curvature: { x: 12, y: 12 },
+      enabled: true, scanlineDensity: 0.45, scanlineIntensity: 0.35,
+      rgbShiftPixels: 1.50, noise: 0, flicker: 0.012,
+      vignetteIntensity: 0.07, brightness: 1, saturation: 1,
+      curvature: { x: 4, y: 4 }, cornerRadius: 0.15,
     } },
   },
   nineties: {
@@ -39,9 +40,10 @@ const profileFixtures = {
     sampling: { scene: 'nearest', textures: 'nearest', output: 'pixelated' },
     cardArtLevel: 'detailed-pixel',
     postProcessing: { crt: {
-      enabled: true, scanlineDensity: 0.60, scanlineIntensity: 0.08,
-      rgbShiftPixels: 0.60, noise: 0.008, flicker: 0.003,
-      vignetteIntensity: 0.08, curvature: { x: 24, y: 24 },
+      enabled: true, scanlineDensity: 0.8, scanlineIntensity: 0.14,
+      rgbShiftPixels: 0.45, noise: 0.004, flicker: 0.003,
+      vignetteIntensity: 0.03, brightness: 1, saturation: 1,
+      curvature: { x: 6.5, y: 6.5 }, cornerRadius: 0.035,
     } },
   },
   early2000s: {
@@ -51,7 +53,8 @@ const profileFixtures = {
     postProcessing: { crt: {
       enabled: false, scanlineDensity: 0, scanlineIntensity: 0,
       rgbShiftPixels: 0, noise: 0, flicker: 0,
-      vignetteIntensity: 0, curvature: { x: 1000, y: 1000 },
+      vignetteIntensity: 0, brightness: 1, saturation: 1,
+      curvature: { x: 1000, y: 1000 }, cornerRadius: 0,
     } },
   },
 };

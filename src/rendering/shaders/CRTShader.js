@@ -12,7 +12,10 @@ const CRTShader = {
     noise: { value: 0.02 },
     flicker: { value: 0.01 },
     vignetteIntensity: { value: 0.75 },
-    curvature: { value: new THREE.Vector2(2.0, 2.0) }
+    brightness: { value: 1.0 },
+    saturation: { value: 1.0 },
+    curvature: { value: new THREE.Vector2(2.0, 2.0) },
+    cornerRadius: { value: 0.04 }
   },
 
   vertexShader: `
@@ -34,7 +37,10 @@ const CRTShader = {
     uniform float noise;
     uniform float flicker;
     uniform float vignetteIntensity;
+    uniform float brightness;
+    uniform float saturation;
     uniform vec2 curvature;
+    uniform float cornerRadius;
 
     varying vec2 vUv;
 
@@ -64,17 +70,27 @@ const CRTShader = {
 
     vec3 scanlines(vec2 uv, vec3 col) {
       float scanlineCount = sourceResolution.y * scanlineDensity;
-      float scanline = sin(uv.y * scanlineCount * 3.14159 * 2.0) * 0.5 + 0.5;
-      scanline = pow(scanline, 1.7);
-      col *= 1.0 - (scanlineIntensity - scanlineIntensity * scanline);
+      float scanline = sin(uv.y * scanlineCount * 3.14159 * 2.0);
+      col *= 1.0 + scanlineIntensity * scanline;
       return col;
     }
 
-    vec3 rgbShift(sampler2D tex, vec2 uv, float amount) {
+    float roundedScreenMask(vec2 uv) {
+      float radius = max(cornerRadius, 0.0);
+      if (radius == 0.0) return 1.0;
+      vec2 p = abs(uv - 0.5);
+      vec2 q = p - (vec2(0.5) - vec2(radius));
+      float distanceToEdge = length(max(q, 0.0))
+        + min(max(q.x, q.y), 0.0) - radius;
+      float feather = 1.5 / max(min(presentationResolution.x, presentationResolution.y), 1.0);
+      return 1.0 - smoothstep(-feather, feather, distanceToEdge);
+    }
+
+    vec3 rgbShift(vec2 uv, float amount) {
       vec3 col;
-      col.r = texture2D(tex, vec2(uv.x + amount, uv.y)).r;
-      col.g = texture2D(tex, uv).g;
-      col.b = texture2D(tex, vec2(uv.x - amount, uv.y)).b;
+      col.r = texture2D(tDiffuse, vec2(uv.x + amount, uv.y)).r;
+      col.g = texture2D(tDiffuse, uv).g;
+      col.b = texture2D(tDiffuse, vec2(uv.x - amount, uv.y)).b;
       return col;
     }
 
@@ -89,7 +105,7 @@ const CRTShader = {
       }
       
       // RGB shift and color
-      vec3 col = rgbShift(tDiffuse, uv, rgbShiftPixels / max(sourceResolution.x, 1.0));
+      vec3 col = rgbShift(uv, rgbShiftPixels / max(sourceResolution.x, 1.0));
       
       // Apply scanlines
       col = scanlines(uv, col);
@@ -101,15 +117,25 @@ const CRTShader = {
       // Add screen flicker
       float flickerVal = sin(time * 60.0) * flicker;
       col *= 1.0 + flickerVal;
+
+      float luminance = dot(col, vec3(0.2126, 0.7152, 0.0722));
+      col = mix(vec3(luminance), col, saturation) * brightness;
       
-      // Apply vignette
-      float vignette = 1.0 - length((uv - 0.5) * 2.0) * vignetteIntensity;
+      // Darken only the extreme glass edge; keep the main image at its
+      // authored luminance and saturation.
+      float edgeDistance = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+      float edgeFalloff = 1.0 - smoothstep(0.0, 0.12, edgeDistance);
+      float vignette = 1.0 - edgeFalloff * vignetteIntensity;
       col *= vignette;
 
-      // Use alpha from original texture
-      float alpha = texture2D(tDiffuse, uv).a;
-      
-      gl_FragColor = vec4(col, alpha);
+      // Give each CRT generation a real rounded tube silhouette independent
+      // of the barrel-warp strength.
+      col *= roundedScreenMask(vUv);
+
+      // The CRT presents an opaque screen. Intermediate composer targets can
+      // carry an undefined alpha channel after a resize; forwarding it would
+      // make the browser composite an otherwise valid frame over black.
+      gl_FragColor = vec4(col, 1.0);
     }
   `
 };
