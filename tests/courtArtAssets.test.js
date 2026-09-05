@@ -9,6 +9,11 @@ import {
   COURT_RANKS,
   getCourtArtSpec,
 } from '../src/rendering/cardArt/courtArtManifest.js';
+import {
+  clearCourtArtCache,
+  getCourtArtImage,
+  preloadCourtArt,
+} from '../src/rendering/cardArt/courtArtAssets.js';
 
 const EXPECTED = {
   'coarse-pixel': { width: 30, height: 56, paletteLimit: 16 },
@@ -61,6 +66,48 @@ test('court manifest defines nine distinct native assets', () => {
 test('court asset lookup rejects unknown levels and ranks', () => {
   assert.throws(() => getCourtArtSpec('bogus', 'K'), /Unknown court art level/);
   assert.throws(() => getCourtArtSpec('coarse-pixel', 'A'), /Unknown court rank/);
+});
+
+test('court preload caches all successfully decoded images', async () => {
+  clearCourtArtCache();
+  const images = new Map();
+  const report = await preloadCourtArt({
+    loadImage: async (url, spec) => {
+      const image = { src: url.href, naturalWidth: spec.width, naturalHeight: spec.height };
+      images.set(url.href, image);
+      return image;
+    },
+  });
+
+  assert.deepEqual(report, { loaded: 9, failed: [] });
+  assert.equal(getCourtArtImage('coarse-pixel', 'K'), images.get(getCourtArtSpec('coarse-pixel', 'K').url.href));
+});
+
+test('court preload reports one failure and leaves that sprite uncached', async () => {
+  clearCourtArtCache();
+  const report = await preloadCourtArt({
+    loadImage: async (url, spec) => {
+      if (url.href.endsWith('/Q.png')) throw new Error('decode failed');
+      return { naturalWidth: spec.width, naturalHeight: spec.height };
+    },
+  });
+
+  assert.equal(report.loaded, 6);
+  assert.equal(report.failed.length, 3);
+  assert.deepEqual(report.failed.map(item => item.rank), ['Q', 'Q', 'Q']);
+  assert.equal(getCourtArtImage('coarse-pixel', 'Q'), null);
+  assert.ok(getCourtArtImage('coarse-pixel', 'K'));
+});
+
+test('court preload rejects decoded images with the wrong native size', async () => {
+  clearCourtArtCache();
+  const report = await preloadCourtArt({
+    loadImage: async () => ({ naturalWidth: 1, naturalHeight: 1 }),
+  });
+
+  assert.equal(report.loaded, 0);
+  assert.equal(report.failed.length, 9);
+  assert.match(report.failed[0].error.message, /native size/);
 });
 
 for (const level of Object.keys(EXPECTED)) {
