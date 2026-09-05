@@ -26,6 +26,7 @@ const FONT_FACE = [
 const THREE_COMMENT = '<!-- Load Three.js and dependencies -->';
 const SHIM_TAG = '<script async src="vendor/es-module-shims/es-module-shims.js"></script>';
 const MODULE_SCRIPT_TAG = '<script type="module" src="index.js"></script>';
+const COURT_ART_BASE_SCRIPT = '<script>window.__JOKER_POKER_COURT_ART_BASE_URL__ = new URL(\'assets/cards/courts/\', document.baseURI).href;</script>';
 const IMPORTMAP_OPEN = '<script type="importmap">';
 const THREE_CORE_URL = /https:\/\/unpkg\.com\/three@[\d.]+\/build\/three\.module\.js/;
 const THREE_ADDONS_URL = /https:\/\/unpkg\.com\/three@[\d.]+\/examples\/jsm\//;
@@ -65,9 +66,10 @@ export function transformHtml(html, mode) {
     html = mustReplace(html, THREE_COMMENT, '', 'three loader comment');
     html = mustReplace(html, SHIM_TAG, '', 'es-module-shims tag');
     html = removeImportMap(html);
-    html = mustReplace(html, MODULE_SCRIPT_TAG, '<script src="game.js"></script>', 'module script tag');
+    html = mustReplace(html, MODULE_SCRIPT_TAG, `${COURT_ART_BASE_SCRIPT}\n    <script src="game.js"></script>`, 'module script tag');
   } else {
     html = rewriteImportMap(html);
+    html = mustReplace(html, MODULE_SCRIPT_TAG, `${COURT_ART_BASE_SCRIPT}\n    ${MODULE_SCRIPT_TAG}`, 'module script tag');
   }
   return html;
 }

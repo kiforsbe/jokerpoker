@@ -35,6 +35,18 @@ test('vendored mode rewrites the import map to local paths and keeps modules', (
   assert.ok(out.includes('vendor/es-module-shims/es-module-shims.js'));
 });
 
+test('offline variants configure the public court-art base before game code runs', () => {
+  for (const mode of ['local', 'vendored']) {
+    const out = transformHtml(html, mode);
+    const assetBase = 'window.__JOKER_POKER_COURT_ART_BASE_URL__ = new URL(\'assets/cards/courts/\', document.baseURI).href;';
+    assert.ok(out.includes(assetBase), `${mode}: court-art public base missing`);
+    const gameScript = mode === 'local'
+      ? '<script src="game.js"></script>'
+      : '<script type="module" src="index.js"></script>';
+    assert.ok(out.indexOf(assetBase) < out.indexOf(gameScript), `${mode}: court-art base is configured too late`);
+  }
+});
+
 test('a missing marker fails the build loudly', () => {
   assert.throws(() => transformHtml('<html><head></head></html>', 'local'), /marker not found/);
   assert.throws(() => transformHtml(html, 'nope'), /unknown mode/);

@@ -7,6 +7,11 @@ const LEVEL_SPECS = {
   'high-detail': { directory: 'early2000s', width: 120, height: 224, paletteLimit: 64 },
 };
 
+const configuredCourtArtBaseUrl = globalThis.__JOKER_POKER_COURT_ART_BASE_URL__;
+const courtArtBaseUrl = configuredCourtArtBaseUrl
+  ? new URL(configuredCourtArtBaseUrl)
+  : new URL('../../../assets/cards/courts/', import.meta.url);
+
 export const COURT_ART_MANIFEST = Object.freeze(Object.fromEntries(
   COURT_ART_LEVELS.map(level => [level, Object.freeze(Object.fromEntries(
     COURT_RANKS.map(rank => {
@@ -15,7 +20,7 @@ export const COURT_ART_MANIFEST = Object.freeze(Object.fromEntries(
         width: spec.width,
         height: spec.height,
         paletteLimit: spec.paletteLimit,
-        url: new URL(`../../../assets/cards/courts/${spec.directory}/${rank}.png`, import.meta.url),
+        url: new URL(`${spec.directory}/${rank}.png`, courtArtBaseUrl),
       })];
     }),
   ))]),

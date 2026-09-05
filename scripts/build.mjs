@@ -35,6 +35,10 @@ for (const f of ['VT323-Regular.ttf', 'OFL.txt']) {
   copyFileSync(path.join(fontDir, f), path.join(out, 'fonts', f));
 }
 
+cpSync(path.join(root, 'assets', 'cards', 'courts'), path.join(out, 'assets', 'cards', 'courts'), {
+  recursive: true,
+});
+
 if (mode === 'local') {
   const esbuild = await import('esbuild');
   await esbuild.build({

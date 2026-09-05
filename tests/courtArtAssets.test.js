@@ -63,6 +63,26 @@ test('court manifest defines nine distinct native assets', () => {
   assert.equal(Object.isFrozen(COURT_ART_MANIFEST), true);
 });
 
+test('court manifest uses the build-provided public asset base when configured', async () => {
+  const property = '__JOKER_POKER_COURT_ART_BASE_URL__';
+  const previous = globalThis[property];
+  const baseUrl = 'file:///release/assets/cards/courts/';
+  globalThis[property] = baseUrl;
+
+  try {
+    const manifestUrl = new URL('../src/rendering/cardArt/courtArtManifest.js', import.meta.url);
+    manifestUrl.searchParams.set('asset-base-test', `${Date.now()}-${Math.random()}`);
+    const configuredManifest = await import(manifestUrl.href);
+    assert.equal(
+      configuredManifest.getCourtArtSpec('coarse-pixel', 'K').url.href,
+      new URL('eighties/K.png', baseUrl).href,
+    );
+  } finally {
+    if (previous === undefined) delete globalThis[property];
+    else globalThis[property] = previous;
+  }
+});
+
 test('court asset lookup rejects unknown levels and ranks', () => {
   assert.throws(() => getCourtArtSpec('bogus', 'K'), /Unknown court art level/);
   assert.throws(() => getCourtArtSpec('coarse-pixel', 'A'), /Unknown court rank/);
