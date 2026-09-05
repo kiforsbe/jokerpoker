@@ -16,6 +16,30 @@ const EXPECTED = {
   'high-detail': { width: 120, height: 224, paletteLimit: 64 },
 };
 
+test('court source atlas has binary transparency and clear cell gutters', async () => {
+  const source = PNG.sync.read(await readFile(fileURLToPath(
+    new URL('../assets/cards/courts/source/court-atlas.png', import.meta.url),
+  )));
+  const gutter = 16;
+  for (let row = 0; row < 3; row += 1) {
+    const top = Math.floor(row * source.height / 3);
+    const bottom = Math.floor((row + 1) * source.height / 3);
+    for (let column = 0; column < 3; column += 1) {
+      const left = Math.floor(column * source.width / 3);
+      const right = Math.floor((column + 1) * source.width / 3);
+      for (let y = top; y < bottom; y += 1) {
+        for (let x = left; x < right; x += 1) {
+          const alpha = source.data[(y * source.width + x) * 4 + 3];
+          assert.ok(alpha === 0 || alpha === 255, `partial source alpha ${alpha} at ${x},${y}`);
+          if (x < left + gutter || x >= right - gutter || y < top + gutter || y >= bottom - gutter) {
+            assert.equal(alpha, 0, `source gutter is opaque at ${x},${y}`);
+          }
+        }
+      }
+    }
+  }
+});
+
 test('court manifest defines nine distinct native assets', () => {
   assert.deepEqual(COURT_ART_LEVELS, Object.keys(EXPECTED));
   assert.deepEqual(COURT_RANKS, ['K', 'Q', 'J']);
