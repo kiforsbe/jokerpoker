@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import AudioSystem from '../src/audio/AudioSystem.js';
 import { AudioDirector } from '../src/audio/AudioDirector.js';
 
 function makeFakes() {
@@ -162,7 +163,7 @@ test('a double win with audio not ready does not throw', () => {
   assert.ok(played.some(p => p.name === 'doubleWin'));
 });
 
-test('music stays off when disabled by default', () => {
+test('music stays off when explicitly disabled', () => {
   const { audio, gm, music } = makeFakes();
   audio.musicEnabled = false;
   new AudioDirector(audio, gm);
@@ -186,4 +187,33 @@ test('state changes centrally enable and disable attract-mode audio suppression'
   gm.emit('stateChanged', { state: 'idle' });
 
   assert.deepEqual(changes, [true, false]);
+});
+
+test('gameplay music is enabled by default while attract mode stays silent', () => {
+  globalThis.window ??= {};
+
+  const audio = new AudioSystem(null);
+  const sequences = [];
+  audio.init = undefined;
+  audio.initialized = true;
+  audio.music = {
+    playSequence(notes, opts) { sequences.push({ notes, opts }); },
+    stop() {},
+  };
+
+  const listeners = new Map();
+  const gm = {
+    state: 'idle',
+    addEventListener(event, cb) { listeners.set(event, cb); },
+    emit(event, data) { listeners.get(event)?.(data); },
+  };
+  new AudioDirector(audio, gm);
+
+  gm.emit('stateChanged', { state: 'attract' });
+  gm.emit('doubleStarted', {});
+  assert.equal(sequences.length, 0);
+
+  gm.emit('stateChanged', { state: 'idle' });
+  gm.emit('doubleStarted', {});
+  assert.equal(sequences.length, 1);
 });

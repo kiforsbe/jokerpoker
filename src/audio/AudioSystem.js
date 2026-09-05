@@ -10,7 +10,7 @@ class AudioSystem {
     this.masterGain = null;
     this.components = new Set();
     this.volume = 0.3;
-    this.musicEnabled = false;
+    this.musicEnabled = true;
     this.attractMode = false;
     this.initializationPromise = null;
     this.logger = new GameLogger();
